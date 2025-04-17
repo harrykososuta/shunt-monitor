@@ -13,25 +13,54 @@ import seaborn as sns
 import pytz
 from scipy.stats import mannwhitneyu
 
-matplotlib.rcParams['font.family'] = 'MS Gothic'
-
 from supabase import create_client, Client
 from dotenv import load_dotenv
-import os
 
-load_dotenv()  # .envファイルを読み込み
+# --- スタイル設定 ---
+matplotlib.rcParams['font.family'] = 'MS Gothic'
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# --- .env 読み込み ---
+load_dotenv()
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# --- Supabase 初期化 ---
+try:
+    SUPABASE_URL = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError("SUPABASE_URL または SUPABASE_KEY が設定されていません。")
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    st.error(f"Supabase 認証エラー: {e}")
+    st.stop()
 
+# --- ユーティリティ関数 ---
+def calculate_parameter(FV, RI, diameter, coeffs):
+    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
 
-# JST取得用
+def calculate_tavr(TAV, TAMV):
+    return TAV / TAMV if TAMV != 0 else 0
+
+def format_xaxis_as_date(ax, df):
+    ax.set_xticks(df['date'])
+    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
+    return ax
+
 def get_japan_now():
     return datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    
-# セッション管理
+
+# --- 定数 ---
+baseline_FV = 380
+baseline_RI = 0.68
+baseline_diameter = 5.0
+
+coefficients = {
+    "PSV": [37.664, 0.0619, 52.569, -1.2],
+    "EDV": [69.506, 0.0305, -74.499, -0.8],
+    "TAV": [43.664, 0.0298, -35.760, -0.6],
+    "TAMV": [65.0, 0.0452, -30.789, -1.0]
+}
+
+# --- セッション初期化 ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'password' not in st.session_state:
@@ -41,7 +70,7 @@ if 'new_user' not in st.session_state:
 if 'page' not in st.session_state:
     st.session_state.page = "シミュレーションツール"
 
-# SQLite データベース接続（認証用）
+# --- 認証 DB ---
 AUTH_DB_FILE = "auth_users.db"
 auth_conn = sqlite3.connect(AUTH_DB_FILE)
 auth_cursor = auth_conn.cursor()
@@ -52,11 +81,10 @@ auth_cursor.execute('''CREATE TABLE IF NOT EXISTS users (
 )''')
 auth_conn.commit()
 
-# アクセスコードの生成
 def generate_access_code(index):
     return f"shunt{str(index).zfill(4)}"
 
-# ログインページ
+# --- ログインページ ---
 if not st.session_state.authenticated:
     st.sidebar.empty()
     st.title("🔐 シャント機能評価ツール - ログイン")
@@ -93,19 +121,21 @@ if not st.session_state.authenticated:
                 st.rerun()
             else:
                 st.error("パスワードまたはアクセスコードが正しくありません")
+
     if 'generated_access_code' in st.session_state:
         st.success(f"登録完了！あなたのアクセスコードは `{st.session_state.generated_access_code}` です。控えてください。")
         st.code(st.session_state.generated_access_code, language="none")
         if st.button("アプリを開始する"):
             st.session_state.start_app = True
             st.experimental_rerun()
+
     if st.session_state.get("start_app"):
         del st.session_state["start_app"]
         del st.session_state["generated_access_code"]
 
     st.stop()
 
-# ログイン済みのときのみ、サイドバーとアプリのページ群を表示
+# --- ログイン済みユーザーの処理 ---
 if st.session_state.authenticated:
     with st.sidebar:
         st.title("ページ選択")
@@ -120,7 +150,7 @@ if st.session_state.authenticated:
     page = st.session_state.page
     st.write(f"ようこそ。現在のページ：{page}")
 
-    # DBファイルはパスワードごとに分離
+    # ユーザーごとの DB 接続
     user_dir = f"data/user_{st.session_state.password}"
     DB_FILE = os.path.join(user_dir, "shunt_data.db")
     os.makedirs(user_dir, exist_ok=True)
@@ -140,93 +170,40 @@ if st.session_state.authenticated:
         EDV REAL,
         score INTEGER,
         comment TEXT,
-        tag TEXT
+        tag TEXT,
+        note TEXT
     )''')
     conn.commit()
 
-    cursor.execute("PRAGMA table_info(shunt_records)")
-    columns_info = cursor.fetchall()
-    column_names = [col[1] for col in columns_info]
-    if "note" not in column_names:
-        cursor.execute("ALTER TABLE shunt_records ADD COLUMN note TEXT")
-        conn.commit()
-
-    try:
-        followups_df = pd.read_sql_query("SELECT name, comment, followup_at FROM followups", conn)
-        followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
-        today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
-        matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
-    except Exception as e:
-        matches = pd.DataFrame()
-
+    # --- ページ別の処理をここから記述（例：ToDoリスト、シミュレーションツールなど）
+    # ToDoリスト
     if page == "ToDoリスト":
         st.header("📋 ToDoリスト")
+        # 以下、カレンダー管理などを記述
 
-        # 本日検査対象者表示
-        st.subheader("🔔 本日の検査予定")
-        if not matches.empty:
-            for _, row in matches.iterrows():
-                st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
-        else:
-            st.info("本日の検査予定はありません。")
+    # シミュレーションツール
+    if page == "シミュレーションツール":
+        st.title("シャント機能評価シミュレーションツール")
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
+            RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+            diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
-        # カレンダーに紐づいたメモ登録
-        st.subheader("🗓 カレンダーでタスクを管理")
-        task_date = st.date_input("タスク日を選択")
-        task_text = st.text_input("タスク内容を入力")
-        if st.button("追加"):
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT,
-                    content TEXT
-                )
-            """)
-            cursor.execute("INSERT INTO tasks (date, content) VALUES (?, ?)", (task_date.strftime('%Y-%m-%d'), task_text))
-            conn.commit()
-            st.success("タスクを追加しました")
+        PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
+        EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
+        TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
+        TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
+        PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
+        TAVR = calculate_tavr(TAV, TAMV)
 
-        st.subheader("📅 登録済みタスク一覧")
-        try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT,
-                    content TEXT
-                )
-            """)
-            conn.commit()
-            task_df = pd.read_sql_query("SELECT date, content FROM tasks ORDER BY date", conn)
-            if task_df.empty:
-                st.info("現在タスクは登録されていません。")
-            else:
-                for _, row in task_df.iterrows():
-                    st.write(f"🗓 {row['date']} - 📌 {row['content']}")
-        except Exception as e:
-            st.error("タスク一覧の取得中にエラーが発生しました。")
-
-if page == "シミュレーションツール":
-    st.title("シャント機能評価シミュレーションツール")
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-        RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
-
-    PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
-    EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
-    TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
-    TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
-    PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
-    TAVR = calculate_tavr(TAV, TAMV)
-
-    st.subheader("主要パラメータ")
-    st.write(f"PSV: {PSV:.2f} cm/s")
-    st.write(f"EDV: {EDV:.2f} cm/s")
-    st.write(f"PI: {PI:.2f}")
-    st.write(f"TAV: {TAV:.2f} cm/s")
-    st.write(f"TAMV: {TAMV:.2f} cm/s")
-    st.write(f"TAVR: {TAVR:.2f}")
+        st.subheader("主要パラメータ")
+        st.write(f"PSV: {PSV:.2f} cm/s")
+        st.write(f"EDV: {EDV:.2f} cm/s")
+        st.write(f"PI: {PI:.2f}")
+        st.write(f"TAV: {TAV:.2f} cm/s")
+        st.write(f"TAMV: {TAMV:.2f} cm/s")
+        st.write(f"TAVR: {TAVR:.2f}")
 
 # ページ：評価フォーム
 if page == "評価フォーム":
