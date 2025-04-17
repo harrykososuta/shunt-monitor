@@ -206,12 +206,34 @@ if st.session_state.authenticated:
 
 if page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
+
+    # 🔧 初期値と係数の定義（必要に応じて調整）
+    baseline_FV = 400
+    baseline_RI = 0.6
+    baseline_diameter = 5.0
+
+    coefficients = {
+        "PSV": [0.1, 0.2, 0.3],
+        "EDV": [0.05, 0.1, 0.2],
+        "TAV": [0.2, 0.1, 0.05],
+        "TAMV": [0.3, 0.2, 0.1]
+    }
+
+    # 🧮 計算関数
+    def calculate_parameter(FV, RI, diameter, coefs):
+        return coefs[0] * FV + coefs[1] * RI + coefs[2] * diameter
+
+    def calculate_tavr(TAV, TAMV):
+        return TAV / TAMV if TAMV != 0 else 0
+
+    # 💡 スライダー入力
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
         RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
         diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
+    # 📊 計算ロジック
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
     EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
     TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
@@ -219,6 +241,7 @@ if page == "シミュレーションツール":
     PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
     TAVR = calculate_tavr(TAV, TAMV)
 
+    # 📈 表示
     st.subheader("主要パラメータ")
     st.write(f"PSV: {PSV:.2f} cm/s")
     st.write(f"EDV: {EDV:.2f} cm/s")
