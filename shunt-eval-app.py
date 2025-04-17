@@ -26,6 +26,18 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# --- 計算用定数（できればインポートのすぐ下あたりに） ---
+baseline_FV = 380
+baseline_RI = 0.68
+baseline_diameter = 5.0
+
+coefficients = {
+    "PSV": [37.664, 0.0619, 52.569, -1.2],
+    "EDV": [69.506, 0.0305, -74.499, -0.8],
+    "TAV": [43.664, 0.0298, -35.760, -0.6],
+    "TAMV": [65.0, 0.0452, -30.789, -1.0]
+}
+
 # JST取得用
 def get_japan_now():
     return datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
@@ -209,17 +221,6 @@ if st.session_state.authenticated:
 import streamlit as st
 import numpy as np
 
-# 計算用定数
-baseline_FV = 380
-baseline_RI = 0.68
-baseline_diameter = 5.0
-coefficients = {
-    "PSV": [37.664, 0.0619, 52.569, -1.2],
-    "EDV": [69.506, 0.0305, -74.499, -0.8],
-    "TAV": [43.664, 0.0298, -35.760, -0.6],
-    "TAMV": [65.0, 0.0452, -30.789, -1.0]
-}
-
 def calculate_parameter(FV, RI, diameter, coeffs):
     return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
 
@@ -235,6 +236,7 @@ if page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
+        print("baseline_FV:", baseline_FV)
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
         RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
         diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
