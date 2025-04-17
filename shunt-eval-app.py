@@ -204,27 +204,38 @@ if st.session_state.authenticated:
         except Exception as e:
             st.error("タスク一覧の取得中にエラーが発生しました。")
 
-# 初期値を明示的に定義
-baseline_FV = 400
-baseline_RI = 0.6
-baseline_diameter = 4.0
 
-# baseline (初期値) を明示的に定義
-baseline_FV = 400
-baseline_RI = 0.6
-baseline_diameter = 4.0
+# 計算用定数
+baseline_FV = 380
+baseline_RI = 0.68
+baseline_diameter = 5.0
+coefficients = {
+    "PSV": [37.664, 0.0619, 52.569, -1.2],
+    "EDV": [69.506, 0.0305, -74.499, -0.8],
+    "TAV": [43.664, 0.0298, -35.760, -0.6],
+    "TAMV": [65.0, 0.0452, -30.789, -1.0]
+}
 
-# シミュレーションツールのページ
+def calculate_parameter(FV, RI, diameter, coeffs):
+    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
+
+def calculate_tavr(TAV, TAMV):
+    return TAV / TAMV if TAMV != 0 else 0
+
+def format_xaxis_as_date(ax, df):
+    ax.set_xticks(df['date'])
+    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
+    return ax
+
+
 if page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
     col1, col2, col3 = st.columns([2, 1, 1])
-
     with col1:
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
         RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管形 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
+        diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
-    # 以下は仮定関数の呼び出し
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
     EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
     TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
@@ -239,8 +250,6 @@ if page == "シミュレーションツール":
     st.write(f"TAV: {TAV:.2f} cm/s")
     st.write(f"TAMV: {TAMV:.2f} cm/s")
     st.write(f"TAVR: {TAVR:.2f}")
-
-
 # ページ：評価フォーム
 if page == "評価フォーム":
     st.title("シャント機能評価フォーム")
