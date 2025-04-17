@@ -38,6 +38,18 @@ coefficients = {
     "TAMV": [65.0, 0.0452, -30.789, -1.0]
 }
 
+# --- 計算用関数（グローバル定義） ---
+def calculate_parameter(FV, RI, diameter, coeffs):
+    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
+
+def calculate_tavr(TAV, TAMV):
+    return TAV / TAMV if TAMV != 0 else 0
+
+def format_xaxis_as_date(ax, df):
+    ax.set_xticks(df['date'])
+    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
+    return ax
+
 # JST取得用
 def get_japan_now():
     return datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
@@ -216,45 +228,30 @@ if st.session_state.authenticated:
         except Exception as e:
             st.error("タスク一覧の取得中にエラーが発生しました。")
 
+    if page == "シミュレーションツール":
+        st.title("シャント機能評価シミュレーションツール")
 
-# 必要なライブラリのインポート
-import streamlit as st
-import numpy as np
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
+            RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+            diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
-def calculate_parameter(FV, RI, diameter, coeffs):
-    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
+        PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
+        EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
+        TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
+        TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
+        PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
+        TAVR = calculate_tavr(TAV, TAMV)
 
-def calculate_tavr(TAV, TAMV):
-    return TAV / TAMV if TAMV != 0 else 0
+        st.subheader("主要パラメータ")
+        st.write(f"PSV: {PSV:.2f} cm/s")
+        st.write(f"EDV: {EDV:.2f} cm/s")
+        st.write(f"PI: {PI:.2f}")
+        st.write(f"TAV: {TAV:.2f} cm/s")
+        st.write(f"TAMV: {TAMV:.2f} cm/s")
+        st.write(f"TAVR: {TAVR:.2f}")
 
-def format_xaxis_as_date(ax, df):
-    ax.set_xticks(df['date'])
-    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
-    return ax
-
-if page == "シミュレーションツール":
-    st.title("シャント機能評価シミュレーションツール")
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        print("baseline_FV:", baseline_FV)
-        FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-        RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
-
-    PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
-    EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
-    TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
-    TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
-    PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
-    TAVR = calculate_tavr(TAV, TAMV)
-
-    st.subheader("主要パラメータ")
-    st.write(f"PSV: {PSV:.2f} cm/s")
-    st.write(f"EDV: {EDV:.2f} cm/s")
-    st.write(f"PI: {PI:.2f}")
-    st.write(f"TAV: {TAV:.2f} cm/s")
-    st.write(f"TAMV: {TAMV:.2f} cm/s")
-    st.write(f"TAVR: {TAVR:.2f}")
 
 # ページ：評価フォーム
 if page == "評価フォーム":
