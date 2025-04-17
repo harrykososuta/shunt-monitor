@@ -37,18 +37,6 @@ except Exception as e:
     st.error(f"Supabase 認証エラー: {e}")
     st.stop()
 
-# --- 定数 ---
-baseline_FV = 380
-baseline_RI = 0.68
-baseline_diameter = 5.0
-
-coefficients = {
-    "PSV": [37.664, 0.0619, 52.569, -1.2],
-    "EDV": [69.506, 0.0305, -74.499, -0.8],
-    "TAV": [43.664, 0.0298, -35.760, -0.6],
-    "TAMV": [65.0, 0.0452, -30.789, -1.0]
-}
-
 # --- 計算用関数（グローバル定義） ---
 def calculate_parameter(FV, RI, diameter, coeffs):
     return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
@@ -239,30 +227,42 @@ if st.session_state.authenticated:
         except Exception as e:
             st.error("タスク一覧の取得中にエラーが発生しました。")
 
-    if page == "シミュレーションツール":
-        st.title("シャント機能評価シミュレーションツール")
+# --- 定数 ---
+baseline_FV = 380
+baseline_RI = 0.68
+baseline_diameter = 5.0
 
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-            RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-            diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
+coefficients = {
+    "PSV": [37.664, 0.0619, 52.569, -1.2],
+    "EDV": [69.506, 0.0305, -74.499, -0.8],
+    "TAV": [43.664, 0.0298, -35.760, -0.6],
+    "TAMV": [65.0, 0.0452, -30.789, -1.0]
+}
 
-        PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
-        EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
-        TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
-        TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
-        PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
-        TAVR = calculate_tavr(TAV, TAMV)
+# --- シミュレーションツールページ ---
+if page == "シミュレーションツール":
+    st.title("シャント機能評価シミュレーションツール")
 
-        st.subheader("主要パラメータ")
-        st.write(f"PSV: {PSV:.2f} cm/s")
-        st.write(f"EDV: {EDV:.2f} cm/s")
-        st.write(f"PI: {PI:.2f}")
-        st.write(f"TAV: {TAV:.2f} cm/s")
-        st.write(f"TAMV: {TAMV:.2f} cm/s")
-        st.write(f"TAVR: {TAVR:.2f}")
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
+        RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+        diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
+    PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
+    EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
+    TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
+    TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
+    PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
+    TAVR = calculate_tavr(TAV, TAMV)
+
+    st.subheader("主要パラメータ")
+    st.write(f"PSV: {PSV:.2f} cm/s")
+    st.write(f"EDV: {EDV:.2f} cm/s")
+    st.write(f"PI: {PI:.2f}")
+    st.write(f"TAV: {TAV:.2f} cm/s")
+    st.write(f"TAMV: {TAMV:.2f} cm/s")
+    st.write(f"TAVR: {TAVR:.2f}")
 
 # ページ：評価フォーム
 if page == "評価フォーム":
