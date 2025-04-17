@@ -205,7 +205,7 @@ if st.session_state.authenticated:
             st.error("タスク一覧の取得中にエラーが発生しました。")
 
 
-# 計算用定数
+# 計算用定数と関数を先に定義
 baseline_FV = 380
 baseline_RI = 0.68
 baseline_diameter = 5.0
@@ -227,13 +227,13 @@ def format_xaxis_as_date(ax, df):
     ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
     return ax
 
-
+# Streamlitのページ切り替え
 if page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-        RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+        RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
         diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
@@ -250,6 +250,8 @@ if page == "シミュレーションツール":
     st.write(f"TAV: {TAV:.2f} cm/s")
     st.write(f"TAMV: {TAMV:.2f} cm/s")
     st.write(f"TAVR: {TAVR:.2f}")
+
+
 # ページ：評価フォーム
 if page == "評価フォーム":
     st.title("シャント機能評価フォーム")
