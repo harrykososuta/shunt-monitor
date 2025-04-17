@@ -205,7 +205,11 @@ if st.session_state.authenticated:
             st.error("タスク一覧の取得中にエラーが発生しました。")
 
 
-# 計算用定数と関数を先に定義
+# 必要なライブラリのインポート
+import streamlit as st
+import numpy as np
+
+# 計算用定数
 baseline_FV = 380
 baseline_RI = 0.68
 baseline_diameter = 5.0
@@ -216,25 +220,24 @@ coefficients = {
     "TAMV": [65.0, 0.0452, -30.789, -1.0]
 }
 
+# パラメータ計算関数
 def calculate_parameter(FV, RI, diameter, coeffs):
     return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
 
 def calculate_tavr(TAV, TAMV):
     return TAV / TAMV if TAMV != 0 else 0
 
-def format_xaxis_as_date(ax, df):
-    ax.set_xticks(df['date'])
-    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
-    return ax
+# シミュレーションページ
+page = "\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u30c4\u30fc\u30eb"
 
-# Streamlitのページ切り替え
-if page == "シミュレーションツール":
-    st.title("シャント機能評価シミュレーションツール")
+if page == "\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u30c4\u30fc\u30eb":
+    st.title("\u30b7\u30e3\u30f3\u30c8\u6a5f\u80fd\u8a55\u4fa1\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u30c4\u30fc\u30eb")
+
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-        RI = st.slider("抑制指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
+        FV = st.slider("\u8840\u6d41\u91cf FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
+        RI = st.slider("\u6291\u5236\u6307\u6570 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+        diameter = st.slider("\u8840\u7ba1\u5f62 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
     EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
@@ -243,7 +246,7 @@ if page == "シミュレーションツール":
     PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
     TAVR = calculate_tavr(TAV, TAMV)
 
-    st.subheader("主要パラメータ")
+    st.subheader("\u4e3b\u8981\u30d1\u30e9\u30e1\u30fc\u30bf")
     st.write(f"PSV: {PSV:.2f} cm/s")
     st.write(f"EDV: {EDV:.2f} cm/s")
     st.write(f"PI: {PI:.2f}")
