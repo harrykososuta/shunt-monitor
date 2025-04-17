@@ -209,14 +209,22 @@ baseline_FV = 400
 baseline_RI = 0.6
 baseline_diameter = 4.0
 
+# baseline (初期値) を明示的に定義
+baseline_FV = 400
+baseline_RI = 0.6
+baseline_diameter = 4.0
+
+# シミュレーションツールのページ
 if page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
     col1, col2, col3 = st.columns([2, 1, 1])
+
     with col1:
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
         RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
+        diameter = st.slider("血管形 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
+    # 以下は仮定関数の呼び出し
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
     EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
     TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
@@ -231,6 +239,7 @@ if page == "シミュレーションツール":
     st.write(f"TAV: {TAV:.2f} cm/s")
     st.write(f"TAMV: {TAMV:.2f} cm/s")
     st.write(f"TAVR: {TAVR:.2f}")
+
 
 # ページ：評価フォーム
 if page == "評価フォーム":
