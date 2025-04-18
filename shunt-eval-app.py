@@ -220,44 +220,37 @@ if page == "ToDoリスト":
                 st.write(f"🗓 {row['date']} - 📌 {row['content']}")
     except Exception as e:
         st.error(f"タスク一覧の取得中にエラーが発生しました: {e}")
-        # シミュレーションツール
-    
-    
-    # --- シミュレーションツール ページ ---
-    if page.strip() == "シミュレーションツール":
-        st.title("シャント機能評価シミュレーションツール")
-        st.write("デバッグ：現在の page =", page)
+        
+        
+# --- シミュレーションツール ページ ---
+if st.session_state.authenticated and page == "シミュレーションツール":
+    st.title("シャント機能評価シミュレーションツール")
+    st.markdown("---")
 
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
+        RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
+        diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
-        st.markdown("---")
+    # パラメータ計算
+    PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
+    EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
+    TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
+    TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
+    PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
+    TAVR = calculate_tavr(TAV, TAMV)
 
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            st.write("✅ スライダー開始")
-            FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
-            RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-            diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
-            st.write(f"FV={FV}, RI={RI}, diameter={diameter}")
-
-        # パラメータ計算
-        st.write("✅ 計算開始")
-        PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
-        EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
-        TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
-        TAMV = calculate_parameter(FV, RI, diameter, coefficients["TAMV"])
-        PI = (PSV - EDV) / TAMV if TAMV != 0 else 0
-        TAVR = calculate_tavr(TAV, TAMV)
-
-        st.subheader("主要パラメータ")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("PSV (cm/s)", f"{PSV:.2f}")
-            st.metric("EDV (cm/s)", f"{EDV:.2f}")
-            st.metric("PI", f"{PI:.2f}")
-        with col2:
-            st.metric("TAV (cm/s)", f"{TAV:.2f}")
-            st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
-            st.metric("TAVR", f"{TAVR:.2f}")
+    st.subheader("主要パラメータ")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("PSV (cm/s)", f"{PSV:.2f}")
+        st.metric("EDV (cm/s)", f"{EDV:.2f}")
+        st.metric("PI", f"{PI:.2f}")
+    with col2:
+        st.metric("TAV (cm/s)", f"{TAV:.2f}")
+        st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
+        st.metric("TAVR", f"{TAVR:.2f}")
 
 # --- 評価フォーム（Supabase 対応） ---
 if page == "評価フォーム":
