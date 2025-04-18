@@ -175,11 +175,52 @@ if st.session_state.authenticated:
     )''')
     conn.commit()
 
-    # --- ページ別の処理をここから記述（例：ToDoリスト、シミュレーションツールなど）
-    # ToDoリスト
     if page == "ToDoリスト":
         st.header("📋 ToDoリスト")
-        # 以下、カレンダー管理などを記述
+
+        # 本日検査対象者表示
+        st.subheader("🔔 本日の検査予定")
+        if not matches.empty:
+            for _, row in matches.iterrows():
+                st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
+        else:
+            st.info("本日の検査予定はありません。")
+
+        # カレンダーに紐づいたメモ登録
+        st.subheader("🗓 カレンダーでタスクを管理")
+        task_date = st.date_input("タスク日を選択")
+        task_text = st.text_input("タスク内容を入力")
+        if st.button("追加"):
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT,
+                    content TEXT
+                )
+            """)
+            cursor.execute("INSERT INTO tasks (date, content) VALUES (?, ?)", (task_date.strftime('%Y-%m-%d'), task_text))
+            conn.commit()
+            st.success("タスクを追加しました")
+
+        st.subheader("📅 登録済みタスク一覧")
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT,
+                    content TEXT
+                )
+            """)
+            conn.commit()
+            task_df = pd.read_sql_query("SELECT date, content FROM tasks ORDER BY date", conn)
+            if task_df.empty:
+                st.info("現在タスクは登録されていません。")
+            else:
+                for _, row in task_df.iterrows():
+                    st.write(f"🗓 {row['date']} - 📌 {row['content']}")
+        except Exception as e:
+            st.error("タスク一覧の取得中にエラーが発生しました。")
+
 
     # シミュレーションツール
     if page == "シミュレーションツール":
