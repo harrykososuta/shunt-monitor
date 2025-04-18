@@ -369,32 +369,40 @@ if page == "評価フォーム":
         st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
-        if name and name.strip():
-            now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
-            comment_joined = "; ".join(comments)
-            try:
-                prev = supabase.table("shunt_records").select("anon_id").eq("name", name).order("date", desc=True).limit(1).execute()
-                anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
-                supabase.table("shunt_records").insert({
-                    "anon_id": anon_id,
-                    "name": name,
-                    "date": now,
-                    "FV": fv,
-                    "RI": ri,
-                    "PI": pi,
-                    "TAV": tav,
-                    "TAMV": tamv,
-                    "PSV": psv,
-                    "EDV": edv,
-                    "score": score,
-                    "comment": comment_joined,
-                    "tag": tag,
-                    "note": note,
-                    "va_type": va_type
-                }).execute()
-                st.success("記録が保存されました。")
-            except Exception as e:
-                st.error(f"保存中にエラーが発生しました: {e}")
+    if name and name.strip():
+        now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+        comment_joined = "; ".join(comments)
+        try:
+            prev = supabase.table("shunt_records") \
+                .select("anon_id") \
+                .eq("name", name) \
+                .eq("access_code", st.session_state.generated_access_code) \  # ← ★ 既存レコード検索もaccess_codeで
+                .order("date", desc=True) \
+                .limit(1) \
+                .execute()
+            anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
+            
+            supabase.table("shunt_records").insert({
+                "anon_id": anon_id,
+                "name": name,
+                "date": now,
+                "FV": fv,
+                "RI": ri,
+                "PI": pi,
+                "TAV": tav,
+                "TAMV": tamv,
+                "PSV": psv,
+                "EDV": edv,
+                "score": score,
+                "comment": comment_joined,
+                "tag": tag,
+                "note": note,
+                "va_type": va_type,
+                "access_code": st.session_state.generated_access_code  # ← ★ここが本命
+            }).execute()
+            st.success("記録が保存されました。")
+        except Exception as e:
+            st.error(f"保存中にエラーが発生しました: {e}")
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
