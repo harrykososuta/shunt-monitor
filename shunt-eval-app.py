@@ -19,6 +19,25 @@ from dotenv import load_dotenv
 # --- スタイル設定 ---
 matplotlib.rcParams['font.family'] = 'MS Gothic'
 
+# --- シミュレーション用の定数 ---
+baseline_FV = 500
+baseline_RI = 0.6
+baseline_diameter = 5.0
+
+coefficients = {
+    "PSV": 0.5,
+    "EDV": 0.2,
+    "TAV": 0.35,
+    "TAMV": 0.4
+}
+
+# --- シミュレーション用の関数 ---
+def calculate_parameter(FV, RI, diameter, coef):
+    return coef * FV / (RI * diameter)
+
+def calculate_tavr(tav, tamv):
+    return tav / tamv if tamv != 0 else 0
+
 # --- .env 読み込み ---
 load_dotenv()
 
