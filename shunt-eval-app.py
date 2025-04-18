@@ -221,21 +221,18 @@ if page == "ToDoリスト":
     except Exception as e:
         st.error(f"タスク一覧の取得中にエラーが発生しました: {e}")
 
-     if page.strip() == "シミュレーションツール":
+# --- シミュレーションツール ページ ---
+    if page == "シミュレーションツール":
         st.title("シャント機能評価シミュレーションツール")
-
         st.markdown("---")
 
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
-            st.write("✅ スライダー開始")
             FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
             RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
             diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
-            st.write(f"FV={FV}, RI={RI}, diameter={diameter}")
 
         # パラメータ計算
-        st.write("✅ 計算開始")
         PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
         EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
         TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
