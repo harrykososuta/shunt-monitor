@@ -77,6 +77,10 @@ if 'password' not in st.session_state:
 if 'new_user' not in st.session_state:
     st.session_state.new_user = None
 
+# --- ページ選択（ログイン後）用の UI を事前に用意 ---
+st.sidebar.title("ページ選択")
+page = st.sidebar.radio("移動", ["シミュレーションツール"])
+
 # --- ログインページ ---
 if not st.session_state.authenticated:
     st.sidebar.empty()
