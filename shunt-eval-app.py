@@ -400,7 +400,8 @@ if page == "評価フォーム":
                 "tag": tag,
                 "note": note,
                 "va_type": va_type,
-                "access_code": st.session_state.generated_access_code  # 👈 Supabase RLS対応
+                "access_code": supabase.auth.get_user().user.id  # ユーザーIDをそのまま使う
+
             }).execute()
             st.success("記録が保存されました。")
         except Exception as e:
