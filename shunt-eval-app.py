@@ -381,15 +381,9 @@ if page == "評価フォーム":
         now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
         comment_joined = "; ".join(comments)
         try:
-            prev = supabase.table("shunt_records") \
-                .select("anon_id") \
-                .eq("name", name) \
-                .eq("access_code", st.session_state.generated_access_code) \  # ← ★ 既存レコード検索もaccess_codeで
-                .order("date", desc=True) \
-                .limit(1) \
-                .execute()
+            prev = supabase.table("shunt_records").select("anon_id") \
+                .eq("name", name).order("date", desc=True).limit(1).execute()
             anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
-            
             supabase.table("shunt_records").insert({
                 "anon_id": anon_id,
                 "name": name,
@@ -406,13 +400,13 @@ if page == "評価フォーム":
                 "tag": tag,
                 "note": note,
                 "va_type": va_type,
-                "access_code": st.session_state.generated_access_code  # ← ★ここが本命
+                "access_code": st.session_state.generated_access_code  # 👈 Supabase RLS対応
             }).execute()
             st.success("記録が保存されました。")
         except Exception as e:
             st.error(f"保存中にエラーが発生しました: {e}")
-        else:
-            st.warning("氏名を入力してください（匿名可・本名以外でOK）")
+    else:
+        st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
 # 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
 if page == "記録一覧とグラフ":
