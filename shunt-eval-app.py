@@ -178,7 +178,10 @@ if st.session_state.authenticated:
 
         # --- 本日の followups（検査予定）取得 ---
         try:
-            followups_response = supabase.table("followups").select("name, comment, followup_at").execute()
+            followups_response = supabase.table("followups") \
+                .select("name, comment, followup_at") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .execute()
             followups_df = pd.DataFrame(followups_response.data)
             followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
             today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
@@ -202,7 +205,8 @@ if st.session_state.authenticated:
             try:
                 supabase.table("tasks").insert({
                     "date": task_date.strftime('%Y-%m-%d'),
-                    "content": task_text
+                    "content": task_text,
+                    "access_code": st.session_state.generated_access_code
                 }).execute()
                 st.success("タスクを追加しました")
             except Exception as e:
@@ -211,7 +215,11 @@ if st.session_state.authenticated:
         # --- 登録済みタスク一覧表示 ---
         st.subheader("📅 登録済みタスク一覧")
         try:
-            task_response = supabase.table("tasks").select("date, content").order("date", desc=False).execute()
+            task_response = supabase.table("tasks") \
+                .select("date, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .order("date", desc=False) \
+                .execute()
             task_df = pd.DataFrame(task_response.data)
             if task_df.empty:
                 st.info("現在タスクは登録されていません。")
