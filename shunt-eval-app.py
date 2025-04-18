@@ -263,41 +263,16 @@ if st.session_state.authenticated:
         st.write(f"TAMV: {TAMV:.2f} cm/s")
         st.write(f"TAVR: {TAVR:.2f}")
 
-# ページ：評価フォーム
+# --- 評価フォーム（Supabase 対応） ---
 if page == "評価フォーム":
     st.title("シャント機能評価フォーム")
-    df_names = pd.read_sql_query("SELECT DISTINCT name FROM shunt_records WHERE name != ''", conn)
 
-    # DBスキーマに va_type がなければ追加
-    cursor.execute("PRAGMA table_info(shunt_records)")
-    columns_info = cursor.fetchall()
-    column_names = [col[1] for col in columns_info]
-    if "va_type" not in column_names:
-        cursor.execute("ALTER TABLE shunt_records ADD COLUMN va_type TEXT")
-        conn.commit()
-
-    # DBテーブルがなければ作成（再確認）
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS shunt_records (
-            id INTEGER PRIMARY KEY,
-            anon_id TEXT,
-            name TEXT,
-            date TEXT,
-            FV REAL,
-            RI REAL,
-            PI REAL,
-            TAV REAL,
-            TAMV REAL,
-            PSV REAL,
-            EDV REAL,
-            score INTEGER,
-            comment TEXT,
-            tag TEXT,
-            note TEXT,
-            va_type TEXT
-        )
-    ''')
-    conn.commit()
+    try:
+        df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
+        name_list = list({entry['name'] for entry in df_names.data})
+    except Exception as e:
+        st.error(f"名前一覧の取得エラー: {e}")
+        name_list = []
 
     date_selected = st.date_input("記録日を選択", value=datetime.date.today())
 
@@ -305,10 +280,10 @@ if page == "評価フォーム":
     if name_option == "新規入力":
         name = st.text_input("氏名（任意）※本名では記入しないでください")
     else:
-        name = st.selectbox("過去の患者名から選択", df_names["name"].tolist())
+        name = st.selectbox("過去の患者名から選択", name_list)
 
     tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
-    va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)  # AVF をデフォルト
+    va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
 
     fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
     ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
@@ -318,7 +293,7 @@ if page == "評価フォーム":
     psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
     edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
 
-    # 評価スコア算出
+    # --- 評価スコアの計算 ---
     score = 0
     comments = []
     if tav <= 34.5:
@@ -349,31 +324,30 @@ if page == "評価フォーム":
             st.write(f"- {comment}")
 
     st.write("### 波形分類")
-    st.write("Ⅰ・Ⅱ型はシャント機能は問題なし")
-    st.write("Ⅲ型は50％程度の狭窄があるため細かく精査")
-    st.write("Ⅳ型はVAIVTを提案を念頭に精査")
-    st.write("Ⅴ型はシャント閉塞している可能性が高い")
+    st.markdown("""
+    - Ⅰ・Ⅱ型：シャント機能は問題なし
+    - Ⅲ型：50％程度の狭窄があるため精査
+    - Ⅳ型：VAIVT提案念頭に精査
+    - Ⅴ型：シャント閉塞の可能性大
+    """)
 
     with st.expander("📌 補足説明を表示"):
-        st.write("この波形分類は超音波検査による観察パターンに基づきます。")
-        st.write("Ⅰ型：抵抗が低く、血流も良好")
-        st.write("Ⅱ型：血流に若干の乱れ")
-        st.write("Ⅲ型：狭窄の兆候があり観察を要する")
-        st.write("Ⅳ型：狭窄が高度でVAIVT検討対象")
-        st.write("Ⅴ型：閉塞や血流停止の可能性が高い")
+        st.markdown("""
+        - Ⅰ型：抵抗が低く、血流も良好
+        - Ⅱ型：血流に若干の乱れ
+        - Ⅲ型：狭窄の兆候あり
+        - Ⅳ型：高度狭窄
+        - Ⅴ型：血流停止の可能性
+        """)
 
     with st.expander("透析中の状態評価を入力"):
         g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
         blood_flow_setting = st.number_input("設定血液流量 (ml/min)", min_value=0.0)
         issue_de = st.radio("脱血不良がありますか？", ["いいえ", "はい"])
-        de_type = ""
-        if issue_de == "はい":
-            de_type = st.radio("穿刺方向は？", ["順行性穿刺", "逆行性穿刺"])
+        de_type = st.radio("穿刺方向は？", ["順行性穿刺", "逆行性穿刺"]) if issue_de == "はい" else ""
 
         issue_pressure = st.radio("静脈圧の上昇はありますか？", ["いいえ", "はい"])
-        static_pressure = 0.0
-        mean_pressure = 0.0
-        iap_ratio = 0.0
+        static_pressure = mean_pressure = iap_ratio = 0.0
         if issue_pressure == "はい" and va_type == "AVG":
             static_pressure = st.number_input("静的静脈圧 (mmHg)", min_value=0.0)
             mean_pressure = st.number_input("平均血圧 (mmHg)", min_value=0.0)
@@ -383,17 +357,12 @@ if page == "評価フォーム":
 
         if st.button("透析評価"):
             if issue_de == "はい":
-                if de_type == "順行性穿刺":
-                    st.info("次回逆行性穿刺でお願いします")
-                else:
-                    st.info("A穿刺部より末梢に狭窄が疑われます")
-
+                st.info("次回逆行性穿刺でお願いします" if de_type == "順行性穿刺" else "A穿刺部より末梢に狭窄が疑われます")
             if issue_pressure == "はい":
                 if va_type == "AVF":
                     st.info("V穿刺部より中枢に狭窄が疑われます")
-                elif va_type == "AVG" and static_pressure >= 40 and iap_ratio > 0.40:
-                    st.info("G-Vか中枢の狭窄が疑われます。")
-
+                elif static_pressure >= 40 and iap_ratio > 0.40:
+                    st.info("G-Vか中枢の狭窄が疑われます")
             if (va_type == "AVF" and recirculation > 5) or (va_type == "AVG" and recirculation > 10):
                 st.info("穿刺部の再考、エコー検査を推奨します")
 
@@ -404,30 +373,40 @@ if page == "評価フォーム":
         RI_PI = ri / pi if pi != 0 else 0
         st.write("### TAVRの算出")
         st.write(f"TAVR: {TAVR:.2f}")
-
         st.write("### RI/PI の算出")
         st.write(f"RI/PI: {RI_PI:.2f}")
-
         st.write("### 追加コメント")
-        st.write("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
-
+        st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
         st.write("### 補足コメント")
-        st.write("この補足は評価に必要な周辺知識を補完するものです。\n※検査時の注意点などをここにまとめることができます")
+        st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
         if name and name.strip():
             now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
             comment_joined = "; ".join(comments)
-            cursor.execute("SELECT anon_id FROM shunt_records WHERE name = ? ORDER BY date DESC LIMIT 1", (name,))
-            result = cursor.fetchone()
-            anon_id = result[0] if result else str(uuid.uuid4())[:8]
-            cursor.execute("""
-                INSERT INTO shunt_records 
-                (anon_id, name, date, FV, RI, PI, TAV, TAMV, PSV, EDV, score, comment, tag, note, va_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (anon_id, name, now, fv, ri, pi, tav, tamv, psv, edv, score, comment_joined, tag, note, va_type))
-            conn.commit()
-            st.success("記録が保存されました。")
+            try:
+                prev = supabase.table("shunt_records").select("anon_id").eq("name", name).order("date", desc=True).limit(1).execute()
+                anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
+                supabase.table("shunt_records").insert({
+                    "anon_id": anon_id,
+                    "name": name,
+                    "date": now,
+                    "FV": fv,
+                    "RI": ri,
+                    "PI": pi,
+                    "TAV": tav,
+                    "TAMV": tamv,
+                    "PSV": psv,
+                    "EDV": edv,
+                    "score": score,
+                    "comment": comment_joined,
+                    "tag": tag,
+                    "note": note,
+                    "va_type": va_type
+                }).execute()
+                st.success("記録が保存されました。")
+            except Exception as e:
+                st.error(f"保存中にエラーが発生しました: {e}")
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
