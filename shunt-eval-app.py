@@ -218,10 +218,10 @@ if page == "ToDoリスト":
         else:
             for _, row in task_df.iterrows():
                 st.write(f"🗓 {row['date']} - 📌 {row['content']}")
-    except Exception as e:
-        st.error(f"タスク一覧の取得中にエラーが発生しました: {e}")
-        
-        
+    except Exception:
+    st.info("本日にタスクはありません。")
+
+
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
