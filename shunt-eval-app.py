@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # --- スタイル設定 ---
 matplotlib.rcParams['font.family'] = 'MS Gothic'
 
-# --- シミュレーション用の定数 ---
+# --- シミュレーション用の定数（復元済み） ---
 baseline_FV = 500
 baseline_RI = 0.6
 baseline_diameter = 5.0
@@ -76,6 +76,8 @@ if 'password' not in st.session_state:
     st.session_state.password = ""
 if 'new_user' not in st.session_state:
     st.session_state.new_user = None
+if 'page' not in st.session_state:
+    st.session_state.page = "ToDoリスト"  # ログイン後の初期ページを指定
 
 # --- ログインページ ---
 if not st.session_state.authenticated:
