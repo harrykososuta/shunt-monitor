@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-import sqlite3
 import datetime
 import uuid
 import os
@@ -34,31 +33,21 @@ except Exception as e:
     st.stop()
 
 # --- ユーティリティ関数 ---
-def calculate_parameter(FV, RI, diameter, coeffs):
-    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
+def generate_access_code(index):
+    return f"shunt{str(index).zfill(4)}"
 
-def calculate_tavr(TAV, TAMV):
-    return TAV / TAMV if TAMV != 0 else 0
+def authenticate_user(password, access_code):
+    res = supabase.table("users").select("*").eq("password", password).eq("access_code", access_code).execute()
+    return res.data if res.data else None
 
-def format_xaxis_as_date(ax, df):
-    ax.set_xticks(df['date'])
-    ax.set_xticklabels(df['date'].dt.strftime('%Y-%m-%d'), rotation=45)
-    return ax
-
-def get_japan_now():
-    return datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-
-# --- 定数 ---
-baseline_FV = 380
-baseline_RI = 0.68
-baseline_diameter = 5.0
-
-coefficients = {
-    "PSV": [37.664, 0.0619, 52.569, -1.2],
-    "EDV": [69.506, 0.0305, -74.499, -0.8],
-    "TAV": [43.664, 0.0298, -35.760, -0.6],
-    "TAMV": [65.0, 0.0452, -30.789, -1.0]
-}
+def register_user(password):
+    res = supabase.table("users").select("*").eq("password", password).execute()
+    if res.data:
+        return None
+    count_res = supabase.table("users").select("*").execute()
+    access_code = generate_access_code(len(count_res.data) + 1)
+    supabase.table("users").insert({"password": password, "access_code": access_code}).execute()
+    return access_code
 
 # --- セッション初期化 ---
 if 'authenticated' not in st.session_state:
@@ -67,71 +56,40 @@ if 'password' not in st.session_state:
     st.session_state.password = ""
 if 'new_user' not in st.session_state:
     st.session_state.new_user = None
-if 'page' not in st.session_state:
-    st.session_state.page = "シミュレーションツール"
-
-# --- 認証 DB ---
-AUTH_DB_FILE = "auth_users.db"
-auth_conn = sqlite3.connect(AUTH_DB_FILE)
-auth_cursor = auth_conn.cursor()
-auth_cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    password TEXT UNIQUE,
-    access_code TEXT UNIQUE
-)''')
-auth_conn.commit()
-
-def generate_access_code(index):
-    return f"shunt{str(index).zfill(4)}"
 
 # --- ログインページ ---
 if not st.session_state.authenticated:
     st.sidebar.empty()
     st.title("🔐 シャント機能評価ツール - ログイン")
 
-    user_type = st.radio("ご利用は初めてですか？", ["はい（新規）", "いいえ（既存ユーザー）"], key="user_type_selector")
+    user_type = st.radio("ご利用は初めてですか？", ["はい（新規）", "いいえ（既存ユーザー）"])
     st.session_state.new_user = user_type == "はい（新規）"
 
-    new_password = st.text_input("4桁のパスワードを入力してください", type="password")
+    password_input = st.text_input("4桁のパスワードを入力してください", type="password")
 
     if st.session_state.new_user:
-        if len(new_password) == 4 and new_password.isdigit():
-            auth_cursor.execute("SELECT * FROM users WHERE password = ?", (new_password,))
-            result = auth_cursor.fetchone()
-            if result:
-                st.warning("すでに登録済みのパスワードです。他のパスワードを選んでください")
-            elif st.button("登録する", key="register_button"):
-                auth_cursor.execute("SELECT COUNT(*) FROM users")
-                user_count = auth_cursor.fetchone()[0] + 1
-                new_access_code = generate_access_code(user_count)
-                auth_cursor.execute("INSERT INTO users (password, access_code) VALUES (?, ?)", (new_password, new_access_code))
-                auth_conn.commit()
-                st.session_state.authenticated = True
-                st.session_state.password = new_password
-                st.session_state.generated_access_code = new_access_code
+        if len(password_input) == 4 and password_input.isdigit():
+            if st.button("登録する"):
+                access_code = register_user(password_input)
+                if access_code:
+                    st.session_state.authenticated = True
+                    st.session_state.password = password_input
+                    st.session_state.generated_access_code = access_code
+                    st.success(f"登録完了！アクセスコード: `{access_code}`")
+                    st.code(access_code)
+                else:
+                    st.warning("すでに登録されているパスワードです。他のものを使用してください。")
     else:
         access_code = st.text_input("アクセスコードを入力してください")
-        if len(new_password) == 4 and new_password.isdigit() and access_code:
-            auth_cursor.execute("SELECT * FROM users WHERE password = ? AND access_code = ?", (new_password, access_code))
-            result = auth_cursor.fetchone()
-            if result:
+        if len(password_input) == 4 and password_input.isdigit() and access_code:
+            user = authenticate_user(password_input, access_code)
+            if user:
                 st.success("ログイン成功！")
                 st.session_state.authenticated = True
-                st.session_state.password = new_password
+                st.session_state.password = password_input
                 st.rerun()
             else:
                 st.error("パスワードまたはアクセスコードが正しくありません")
-
-    if 'generated_access_code' in st.session_state:
-        st.success(f"登録完了！あなたのアクセスコードは `{st.session_state.generated_access_code}` です。控えてください。")
-        st.code(st.session_state.generated_access_code, language="none")
-        if st.button("アプリを開始する"):
-            st.session_state.start_app = True
-            st.experimental_rerun()
-
-    if st.session_state.get("start_app"):
-        del st.session_state["start_app"]
-        del st.session_state["generated_access_code"]
 
     st.stop()
 
