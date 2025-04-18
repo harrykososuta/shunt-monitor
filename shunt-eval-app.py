@@ -410,14 +410,19 @@ if page == "評価フォーム":
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
-# 記録一覧とグラフページでの経時変化グラフ使用例
+# 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
 if page == "記録一覧とグラフ":
     st.title("記録の一覧と経時変化グラフ")
-    df = pd.read_sql_query("SELECT * FROM shunt_records", conn)
+    try:
+        response = supabase.table("shunt_records").select("*").execute()
+        df = pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"データの取得に失敗しました: {e}")
+        st.stop()
 
     if not df.empty:
-        # ✅ 日本時間に変換し、表示形式を整える（西暦-月-日 時:分:秒）
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
+        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = df["date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
         df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         filtered_names = df["name"].dropna().unique().tolist()
@@ -426,19 +431,16 @@ if page == "記録一覧とグラフ":
         selected_name = st.selectbox("表示する氏名を選択", filtered_names)
         df_filtered = df[df["name"] == selected_name]
 
-        # ✅ 表示列制限 & 記録日で「古い順」に並び替え
         columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
         if all(col in df_filtered.columns for col in columns):
             df_filtered = df_filtered[columns].sort_values(by="date", ascending=True)
 
-        # ▼ 記録一覧 表示／非表示トグル
         if st.button("記録一覧を表示 / 非表示", key="toggle_record_list"):
             st.session_state.show_record_list = not st.session_state.get("show_record_list", False)
         if st.session_state.get("show_record_list", True):
             st.write(f"### {selected_name} の記録一覧")
             st.dataframe(df_filtered)
 
-        # ▼ 検査日時を選択（表示形式に合わせて再変換）
         st.markdown("検査日時を選択")
         selectable_datetimes = df_filtered["date"].tolist()
         selected_datetime_str = st.selectbox("検査日時を選択", selectable_datetimes)
@@ -447,7 +449,6 @@ if page == "記録一覧とグラフ":
         if not selected_records.empty:
             selected_record = selected_records.iloc[-1]
 
-            # ▼ レポート出力 表示/非表示トグル
             if st.button("レポート出力を表示 / 非表示", key="toggle_report"):
                 st.session_state.show_report = not st.session_state.get("show_report", False)
 
@@ -467,24 +468,16 @@ if page == "記録一覧とグラフ":
                     })
                     st.dataframe(report_df, use_container_width=True)
 
-                    for i, row in report_df.iterrows():
-                        param = row["Parameter"]
-                        val = row["Value"]
-                        base = row["Threshold"]
-                        direction = row["Direction"]
-
+                    for _, row in report_df.iterrows():
+                        param, val, base, direction = row
                         if param == "RI":
-                            xlim = (0, 1.0)
-                            xticks = np.arange(0, 1.1, 0.1)
+                            xlim = (0, 1.0); xticks = np.arange(0, 1.1, 0.1)
                         elif param == "PI":
-                            xlim = (0, 5.0)
-                            xticks = np.arange(0, 5.5, 0.5)
+                            xlim = (0, 5.0); xticks = np.arange(0, 5.5, 0.5)
                         else:
-                            xlim = (0, max(1.5 * val, base * 1.5))
-                            xticks = None
+                            xlim = (0, max(1.5 * val, base * 1.5)); xticks = None
 
                         fig, ax = plt.subplots(figsize=(5, 1.8))
-
                         if direction == "Below":
                             ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
                             ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
@@ -504,7 +497,6 @@ if page == "記録一覧とグラフ":
 
                     st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
 
-                    # ▼ 所見コメント選択と次回検査日
                     comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"], key="comment_select")
 
                     followup_date = None
@@ -513,22 +505,16 @@ if page == "記録一覧とグラフ":
 
                     if st.button("この所見を保存"):
                         now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            CREATE TABLE IF NOT EXISTS followups (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                name TEXT,
-                                comment TEXT,
-                                followup_at DATE,
-                                created_at TIMESTAMP
-                            )
-                        """)
-                        cursor.execute(
-                            "INSERT INTO followups (name, comment, followup_at, created_at) VALUES (?, ?, ?, ?)",
-                            (selected_name, comment, followup_date.strftime('%Y-%m-%d') if followup_date else None, now_jst.strftime('%Y-%m-%d %H:%M:%S'))
-                        )
-                        conn.commit()
-                        st.success("所見と次回検査日を保存しました。")
+                        try:
+                            supabase.table("followups").insert({
+                                "name": selected_name,
+                                "comment": comment,
+                                "followup_at": followup_date.strftime('%Y-%m-%d') if followup_date else None,
+                                "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S')
+                            }).execute()
+                            st.success("所見と次回検査日を保存しました。")
+                        except Exception as e:
+                            st.error(f"保存に失敗しました: {e}")
 
                 with col2:
                     st.markdown("### Trend Graphs")
@@ -546,7 +532,6 @@ if page == "記録一覧とグラフ":
                             ax2.set_xticklabels(df_filtered["date"], rotation=45, ha='right')
                             st.pyplot(fig2)
 
-        # ▼ グラフ出力（ラベル固定トグル）
         if st.button("グラフ出力を表示 / 非表示", key="toggle_full_graph"):
             st.session_state.show_full_graph = not st.session_state.get("show_full_graph", False)
 
@@ -564,10 +549,8 @@ if page == "記録一覧とグラフ":
                     ax.set_xticks(df_filtered["date"])
                     ax.set_xticklabels(df_filtered["date"], rotation=45, ha='right')
                     st.pyplot(fig)
-
     else:
         st.info("記録がまだありません。")
-
 
 # ページ：患者管理
 if page == "患者管理":
