@@ -226,6 +226,8 @@ if page == "ToDoリスト":
     # --- シミュレーションツール ページ ---
     if page.strip() == "シミュレーションツール":
         st.title("シャント機能評価シミュレーションツール")
+        st.write("デバッグ：現在の page =", page)
+
 
         st.markdown("---")
 
