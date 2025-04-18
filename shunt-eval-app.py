@@ -192,52 +192,54 @@ if st.session_state.authenticated:
     except Exception as e:
         matches = pd.DataFrame()
 
-    if page == "ToDoリスト":
-        st.header("📋 ToDoリスト")
+    # ページ：ToDoリスト
+if page == "ToDoリスト":
+    st.header("📋 ToDoリスト")
 
-        # 本日検査対象者表示
-        st.subheader("🔔 本日の検査予定")
-        if not matches.empty:
-            for _, row in matches.iterrows():
-                st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
-        else:
-            st.info("本日の検査予定はありません。")
+    # --- 本日の followups（検査予定）取得 ---
+    try:
+        followups_response = supabase.table("followups").select("name, comment, followup_at").execute()
+        followups_df = pd.DataFrame(followups_response.data)
+        followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
+        today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+        matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
+    except Exception as e:
+        matches = pd.DataFrame()
 
-        # カレンダーに紐づいたメモ登録
-        st.subheader("🗓 カレンダーでタスクを管理")
-        task_date = st.date_input("タスク日を選択")
-        task_text = st.text_input("タスク内容を入力")
-        if st.button("追加"):
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT,
-                    content TEXT
-                )
-            """)
-            cursor.execute("INSERT INTO tasks (date, content) VALUES (?, ?)", (task_date.strftime('%Y-%m-%d'), task_text))
-            conn.commit()
-            st.success("タスクを追加しました")
+    # --- 本日の検査対象者表示 ---
+    st.subheader("🔔 本日の検査予定")
+    if not matches.empty:
+        for _, row in matches.iterrows():
+            st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
+    else:
+        st.info("本日の検査予定はありません。")
 
-        st.subheader("📅 登録済みタスク一覧")
+    # --- カレンダーに紐づいたメモ登録 ---
+    st.subheader("🗓 カレンダーでタスクを管理")
+    task_date = st.date_input("タスク日を選択")
+    task_text = st.text_input("タスク内容を入力")
+    if st.button("追加"):
         try:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT,
-                    content TEXT
-                )
-            """)
-            conn.commit()
-            task_df = pd.read_sql_query("SELECT date, content FROM tasks ORDER BY date", conn)
-            if task_df.empty:
-                st.info("現在タスクは登録されていません。")
-            else:
-                for _, row in task_df.iterrows():
-                    st.write(f"🗓 {row['date']} - 📌 {row['content']}")
+            supabase.table("tasks").insert({
+                "date": task_date.strftime('%Y-%m-%d'),
+                "content": task_text
+            }).execute()
+            st.success("タスクを追加しました")
         except Exception as e:
-            st.error("タスク一覧の取得中にエラーが発生しました。")
+            st.error(f"タスクの追加に失敗しました: {e}")
 
+    # --- 登録済みタスク一覧表示 ---
+    st.subheader("📅 登録済みタスク一覧")
+    try:
+        task_response = supabase.table("tasks").select("date, content").order("date", desc=False).execute()
+        task_df = pd.DataFrame(task_response.data)
+        if task_df.empty:
+            st.info("現在タスクは登録されていません。")
+        else:
+            for _, row in task_df.iterrows():
+                st.write(f"🗓 {row['date']} - 📌 {row['content']}")
+    except Exception as e:
+        st.error(f"タスク一覧の取得中にエラーが発生しました: {e}")
 
     # シミュレーションツール
     if page == "シミュレーションツール":
