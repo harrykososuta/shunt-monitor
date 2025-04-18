@@ -221,8 +221,7 @@ if page == "ToDoリスト":
     except Exception as e:
         st.error(f"タスク一覧の取得中にエラーが発生しました: {e}")
 
-     # --- シミュレーションツール ページ ---
-    if page == "シミュレーションツール":
+     if page.strip() == "シミュレーションツール":
         st.title("シャント機能評価シミュレーションツール")
 
         st.markdown("---")
