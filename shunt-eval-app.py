@@ -219,7 +219,7 @@ if page == "ToDoリスト":
             for _, row in task_df.iterrows():
                 st.write(f"🗓 {row['date']} - 📌 {row['content']}")
     except Exception:
-    st.info("本日にタスクはありません。")
+        st.info("本日にタスクはありません。")
 
 
 # --- シミュレーションツール ページ ---
