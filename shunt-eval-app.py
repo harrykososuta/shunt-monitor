@@ -174,6 +174,23 @@ if st.session_state.authenticated:
         note TEXT
     )''')
     conn.commit()
+        # --- 本日の検査予定 followups テーブルから matches を定義 ---
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS followups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                comment TEXT,
+                followup_at DATE,
+                created_at TIMESTAMP
+            )
+        """)
+        followups_df = pd.read_sql_query("SELECT name, comment, followup_at FROM followups", conn)
+        followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
+        today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+        matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
+    except Exception as e:
+        matches = pd.DataFrame()
 
     if page == "ToDoリスト":
         st.header("📋 ToDoリスト")
