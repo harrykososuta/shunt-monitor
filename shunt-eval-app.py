@@ -555,11 +555,13 @@ if page == "記録一覧とグラフ":
 # ページ：患者管理
 if page == "患者管理":
     st.title("患者管理リスト")
-    df = pd.read_sql_query("SELECT * FROM shunt_records", conn)
+    response = supabase.table("shunt_records").select("*").execute()
+    df = pd.DataFrame(response.data)
 
     if not df.empty:
         # ✅ 日付を日本時間に変換し、表示形式を整える
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
+        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = df["date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
         df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         name_counts = df.groupby("name")["id"].count().reset_index().rename(columns={"id": "記録数"})
@@ -659,9 +661,7 @@ if page == "患者管理":
 
             if st.session_state.confirm_edit:
                 if st.button("⚠ 本当に氏名を更新しますか？（再クリックで実行）"):
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE shunt_records SET name = ? WHERE name = ?", (new_name, edit_target_name))
-                    conn.commit()
+                    supabase.table("shunt_records").update({"name": new_name}).eq("name", edit_target_name).execute()
                     st.success("氏名を更新しました。ページを再読み込みしてください。")
                     st.session_state.confirm_edit = False
 
@@ -682,15 +682,12 @@ if page == "患者管理":
 
             if st.session_state.confirm_delete:
                 if st.button("⚠ 本当に削除しますか？（再クリックで実行）"):
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM shunt_records WHERE name = ?", (delete_target_name,))
-                    conn.commit()
+                    supabase.table("shunt_records").delete().eq("name", delete_target_name).execute()
                     st.success("記録を削除しました。ページを再読み込みしてください。")
                     st.session_state.confirm_delete = False
 
     else:
         st.info("現在記録されている患者はいません。")
-
 
 # 箱ひげ図（中央値・外れ値強調・N数表示）関数
 def draw_boxplot_with_median_outliers(data, metric, category_col):
@@ -713,11 +710,12 @@ def draw_boxplot_with_median_outliers(data, metric, category_col):
 # ページ：患者データ一覧
 if page == "患者データ一覧":
     st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
-    df = pd.read_sql_query("SELECT * FROM shunt_records", conn)
+    response = supabase.table("shunt_records").select("*").execute()
+    df = pd.DataFrame(response.data)
 
     if not df.empty:
-        # ✅ 日本時間 + 表示整形
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
+        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = df["date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
         df["date_display"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         unique_names = df["name"].dropna().unique().tolist()
@@ -759,57 +757,11 @@ if page == "患者データ一覧":
                         display_data = display_data.rename(columns={"date_display": "date"})[display_columns]
                         st.dataframe(display_data, height=200)
 
-                    if st.button(f"{selected_name} の統計を表示"):
-                        st.subheader("\U0001F4CA 各項目の統計（平均・標準偏差・中央値・IQR）")
-                        metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-                        stats_data = {
-                            "Metric": metrics,
-                            "Mean": [round(np.mean(filtered_data[m]), 2) for m in metrics],
-                            "SD": [round(np.std(filtered_data[m], ddof=1), 2) for m in metrics],
-                            "Median": [round(np.median(filtered_data[m]), 2) for m in metrics],
-                            "IQR": [round(np.percentile(filtered_data[m], 75) - np.percentile(filtered_data[m], 25), 2) for m in metrics]
-                        }
-                        st.dataframe(pd.DataFrame(stats_data), height=150)
-
-                        st.markdown("### Trend Graphs")
-                        col1, col2 = st.columns(2)
-                        for i, metric in enumerate(metrics):
-                            with (col1 if i % 2 == 0 else col2):
-                                fig, ax = plt.subplots(figsize=(5, 2.5))
-                                ax.plot(filtered_data["date"], filtered_data[metric], marker="o")
-                                ax.set_title(f"{metric} Trend")
-                                ax.set_xlabel("Date")
-                                ax.set_ylabel(metric)
-                                ax.grid(True)
-                                ax.set_xticks(filtered_data["date"])
-                                ax.set_xticklabels(filtered_data["date"].dt.strftime('%Y-%m-%d'), rotation=45, ha='right')
-                                st.pyplot(fig)
-
-                    if 'show_corr' not in st.session_state:
-                        st.session_state.show_corr = False
-
-                    if st.button("\U0001F4C8 相関分析を表示（表示/非表示切替）"):
-                        st.session_state.show_corr = not st.session_state.show_corr
-
-                    if st.session_state.show_corr:
-                        st.subheader("\U0001F4CA Pearson Correlation Matrix")
-                        corr_metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-                        for col in corr_metrics:
-                            filtered_data[col] = pd.to_numeric(filtered_data[col], errors='coerce')
-                        corr_matrix = filtered_data[corr_metrics].dropna().corr(method='pearson')
-                        st.dataframe(corr_matrix.round(2), height=150)
-                        if corr_matrix.isnull().values.any():
-                            st.warning("\u26A0\ufe0f 一部の項目については相関係数が計算できませんでした（データ数不足や欠損値の可能性があります）。")
-                        fig, ax = plt.subplots(figsize=(5, 4))
-                        sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", square=True, ax=ax, cbar_kws={'shrink': .8})
-                        ax.set_title("Correlation Matrix")
-                        st.pyplot(fig)
-
         st.markdown("---")
-        st.subheader("\U0001F4CA 特記事項カテゴリでの比較")
+        st.subheader("📊 特記事項カテゴリでの比較")
         categories = df["tag"].dropna().unique().tolist()
         va_types = df["va_type"].dropna().unique().tolist()
-        all_categories = list(sorted(set(categories + va_types)))
+        all_categories = sorted(set(categories + va_types))
         selected_category = st.selectbox("特記事項またはVAの種類を選択して記録を表示", all_categories, key="cat_view")
         if selected_category in categories:
             cat_data = df[df["tag"] == selected_category]
@@ -836,7 +788,7 @@ if page == "患者データ一覧":
                 "category_label"
             ] = compare_categories[1]
 
-            st.markdown("#### \u203bMann-Whitney U Test")
+            st.markdown("#### ※ Mann-Whitney U Test")
             metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
             p_results = {"Metric": [], "p-value": []}
             for metric in metrics:
@@ -849,7 +801,7 @@ if page == "患者データ一覧":
             st.dataframe(pd.DataFrame(p_results), height=150)
 
             st.markdown("---")
-            st.subheader("\U0001F4C8 Boxplot Comparison")
+            st.subheader("📊 Boxplot Comparison")
             col1, col2 = st.columns(2)
             for i, metric in enumerate(metrics):
                 with (col1 if i % 2 == 0 else col2):
@@ -861,10 +813,10 @@ if page == "患者データ一覧":
                                     flierprops=dict(marker='o', markerfacecolor='red', markersize=6, linestyle='none'))
                         group_counts = plot_data["category_label"].value_counts().to_dict()
                         xtick_labels = [f"{label.get_text()}\n(n={group_counts.get(label.get_text(), 0)})" for label in ax.get_xticklabels()]
-                        ax.set_xticklabels(xtick_labels, fontname='DejaVu Sans')
+                        ax.set_xticklabels(xtick_labels)
                         ax.set_title(f"{metric} Comparison")
-                        ax.set_xlabel("Category", fontname='DejaVu Sans')
-                        ax.set_ylabel(metric, fontname='DejaVu Sans')
+                        ax.set_xlabel("Category")
+                        ax.set_ylabel(metric)
                         plt.tight_layout()
                         st.pyplot(fig)
                     else:
