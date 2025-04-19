@@ -381,7 +381,7 @@ if page == "評価フォーム":
         now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
         comment_joined = "; ".join(comments)
 
-        # 👇 ここに確認用のコードを入れる！
+        # 👇 ユーザー情報取得とaccess_code表示
         user_info = supabase.auth.get_user()
         st.write("🔐 現在のユーザー情報:", user_info)
 
@@ -408,7 +408,7 @@ if page == "評価フォーム":
                 "tag": tag,
                 "note": note,
                 "va_type": va_type,
-                "access_code": access_code  # 👈 ここもuser_idで設定
+                "access_code": access_code  # 👈 SupabaseのRLSで参照される
             }).execute()
             st.success("記録が保存されました。")
         except Exception as e:
