@@ -383,6 +383,7 @@ if page == "評価フォーム":
 
             user_info = supabase.auth.get_user()
             access_code = user_info.user.id if user_info and user_info.user else None
+            st.write("🔑 現在のアクセスコード (auth.uid):", access_code)
 
         try:
             prev = supabase.table("shunt_records").select("anon_id") \
