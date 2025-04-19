@@ -380,6 +380,14 @@ if page == "評価フォーム":
     if name and name.strip():
         now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
         comment_joined = "; ".join(comments)
+
+        # 👇 ここに確認用のコードを入れる！
+        user_info = supabase.auth.get_user()
+        st.write("🔐 現在のユーザー情報:", user_info)
+
+        access_code = user_info.user.id if user_info and user_info.user else None
+        st.write("🔑 access_code:", access_code)
+
         try:
             prev = supabase.table("shunt_records").select("anon_id") \
                 .eq("name", name).order("date", desc=True).limit(1).execute()
@@ -400,8 +408,7 @@ if page == "評価フォーム":
                 "tag": tag,
                 "note": note,
                 "va_type": va_type,
-                "access_code": supabase.auth.get_user().user.id  # ユーザーIDをそのまま使う
-
+                "access_code": access_code  # 👈 ここもuser_idで設定
             }).execute()
             st.success("記録が保存されました。")
         except Exception as e:
