@@ -16,7 +16,7 @@ from scipy.stats import mannwhitneyu
 from supabase import create_client, Client
 # Supabase 接続設定
 url = "https://wlozruvtxaoagnumolkr.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsb3pydXZ0eGFvYWdudW1vbGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4NTg0MDAsImV4cCI6MjA2MDQzNDQwMH0.o9o1bhEhXyAYhrQIhuevWuDzJxASG-DSb7IqXIz_Huw"
 supabase: Client = create_client(url, key)
 
 from dotenv import load_dotenv
