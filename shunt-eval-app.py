@@ -378,15 +378,12 @@ if page == "評価フォーム":
 
     if st.button("記録を保存"):
     if name and name.strip():
+        # ここから中身をインデント！
         now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
         comment_joined = "; ".join(comments)
 
-        # 👇 ユーザー情報取得とaccess_code表示
         user_info = supabase.auth.get_user()
-        st.write("🔐 現在のユーザー情報:", user_info)
-
         access_code = user_info.user.id if user_info and user_info.user else None
-        st.write("🔑 access_code:", access_code)
 
         try:
             prev = supabase.table("shunt_records").select("anon_id") \
@@ -408,7 +405,7 @@ if page == "評価フォーム":
                 "tag": tag,
                 "note": note,
                 "va_type": va_type,
-                "access_code": access_code  # 👈 SupabaseのRLSで参照される
+                "access_code": access_code
             }).execute()
             st.success("記録が保存されました。")
         except Exception as e:
