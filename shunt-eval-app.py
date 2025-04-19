@@ -377,8 +377,7 @@ if page == "評価フォーム":
         st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
-    if name and name.strip():
-        # ここから中身をインデント！
+    if name and name.strip():  # 👈 この中身をちゃんとインデント！
         now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
         comment_joined = "; ".join(comments)
 
