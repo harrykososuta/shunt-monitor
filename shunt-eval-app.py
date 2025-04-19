@@ -377,12 +377,12 @@ if page == "評価フォーム":
         st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
-    if name and name.strip():  # 👈 この中身をちゃんとインデント！
-        now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
-        comment_joined = "; ".join(comments)
+        if name and name.strip():
+            now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+            comment_joined = "; ".join(comments)
 
-        user_info = supabase.auth.get_user()
-        access_code = user_info.user.id if user_info and user_info.user else None
+            user_info = supabase.auth.get_user()
+            access_code = user_info.user.id if user_info and user_info.user else None
 
         try:
             prev = supabase.table("shunt_records").select("anon_id") \
