@@ -412,6 +412,9 @@ if page == "評価フォーム":
             st.error(f"保存中にエラーが発生しました: {e}")
     else:
         st.warning("氏名を入力してください（匿名可・本名以外でOK）")
+    
+    # ✅ 最後にログイン情報を表示（デバッグ確認用）
+    st.write("🔐 Supabaseログイン情報:", supabase.auth.get_user())
 
 # 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
 if page == "記録一覧とグラフ":
