@@ -14,6 +14,11 @@ import pytz
 from scipy.stats import mannwhitneyu
 
 from supabase import create_client, Client
+# Supabase 接続設定
+url = "https://wlozruvtxaoagnumolkr.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+supabase: Client = create_client(url, key)
+
 from dotenv import load_dotenv
 
 # --- スタイル設定 ---
@@ -83,6 +88,20 @@ if 'page' not in st.session_state:
 if not st.session_state.authenticated:
     st.sidebar.empty()
     st.title("🔐 シャント機能評価ツール - ログイン")
+
+# Supabaseログイン情報の確認
+user_info = supabase.auth.get_user()
+access_code = user_info.user.id if user_info and user_info.user else None
+
+if access_code is None:
+    st.warning("ログインしてください")
+    if st.button("🔑 GitHubでログイン"):
+        supabase.auth.sign_in_with_oauth({"provider": "github"})
+        st.stop()  # 🔁 ページ遷移を強制する（重要）
+else:
+    st.success("✅ ログイン済み！")
+    st.write("🔐 現在のユーザー情報:", user_info)
+    st.write("🔑 アクセスコード (auth.uid):", access_code)
 
     user_type = st.radio("ご利用は初めてですか？", ["はい（新規）", "いいえ（既存ユーザー）"])
     st.session_state.new_user = user_type == "はい（新規）"
