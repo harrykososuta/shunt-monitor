@@ -444,45 +444,43 @@ if st.session_state.authenticated:
             st.write("### 補足コメント")
             st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
-        if st.button("記録を保存"):
-            if name and name.strip():
-                now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
-                comment_joined = "; ".join(comments)
+    if st.button("記録を保存"):
+        if name and name.strip():
+            now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+            comment_joined = "; ".join(comments)
 
-                user_info = supabase.auth.get_user()
-                access_code = user_info.user.id if user_info and user_info.user else None
-                st.write("🔑 現在のアクセスコード (auth.uid):", access_code)
+            # ✅ auth.uid() は使わず、セッションの access_code を使う
+            access_code = st.session_state.generated_access_code
+            st.write("🔑 現在のアクセスコード:", access_code)
 
-                try:
-                    prev = supabase.table("shunt_records").select("anon_id") \
-                        .eq("name", name).order("date", desc=True).limit(1).execute()
-                    anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
-                    supabase.table("shunt_records").insert({
-                        "anon_id": anon_id,
-                        "name": name,
-                        "date": now,
-                        "FV": fv,
-                        "RI": ri,
-                        "PI": pi,
-                        "TAV": tav,
-                        "TAMV": tamv,
-                        "PSV": psv,
-                        "EDV": edv,
-                        "score": score,
-                        "comment": comment_joined,
-                        "tag": tag,
-                        "note": note,
-                        "va_type": va_type,
-                        "access_code": access_code
-                    }).execute()
-                    st.success("記録が保存されました。")
-                except Exception as e:
-                    st.error(f"保存中にエラーが発生しました: {e}")
-            else:
-                st.warning("氏名を入力してください（匿名可・本名以外でOK）")
+            try:
+                prev = supabase.table("shunt_records").select("anon_id") \
+                    .eq("name", name).order("date", desc=True).limit(1).execute()
+                anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
+                supabase.table("shunt_records").insert({
+                    "anon_id": anon_id,
+                    "name": name,
+                    "date": now,
+                    "FV": fv,
+                    "RI": ri,
+                    "PI": pi,
+                    "TAV": tav,
+                    "TAMV": tamv,
+                    "PSV": psv,
+                    "EDV": edv,
+                    "score": score,
+                    "comment": comment_joined,
+                    "tag": tag,
+                    "note": note,
+                    "va_type": va_type,
+                    "access_code": access_code  # ← ここが重要
+                }).execute()
+                st.success("記録が保存されました。")
+            except Exception as e:
+                st.error(f"保存中にエラーが発生しました: {e}")
+        else:
+            st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
-        # ✅ 最後にログイン情報を表示（デバッグ確認用）
-        st.write("🔐 Supabaseログイン情報:", supabase.auth.get_user())
 
 # 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
 if st.session_state.authenticated:
