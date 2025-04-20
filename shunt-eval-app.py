@@ -85,57 +85,59 @@ if 'page' not in st.session_state:
     st.session_state.page = "ToDoリスト"  # ログイン後の初期ページを指定
 
 # --- ログインページ ---
-if not st.session_state.authenticated:
+if not st.session_state.get("authenticated", False):
     st.sidebar.empty()
     st.title("🔐 シャント機能評価ツール - ログイン")
 
-# Supabaseログイン情報の確認
-user_info = supabase.auth.get_user()
-access_code = user_info.user.id if user_info and user_info.user else None
-
-if access_code is None:
-    st.warning("ログインしてください")
-    if st.button("🔑 GitHubでログイン"):
-        supabase.auth.sign_in_with_oauth({"provider": "github"})
-        st.stop()  # 🔁 ページ遷移を強制する（重要）
-else:
-    st.success("✅ ログイン済み！")
-    st.write("🔐 現在のユーザー情報:", user_info)
-    st.write("🔑 アクセスコード (auth.uid):", access_code)
-
+    # 新規 or 既存ユーザー選択
     user_type = st.radio("ご利用は初めてですか？", ["はい（新規）", "いいえ（既存ユーザー）"])
     st.session_state.new_user = user_type == "はい（新規）"
 
+    # パスワード入力（4桁）
     password_input = st.text_input("4桁のパスワードを入力してください", type="password")
 
+    # --- 新規登録 ---
     if st.session_state.new_user:
         if len(password_input) == 4 and password_input.isdigit():
             if st.button("登録する"):
+                # 重複パスワードチェック & access_code 自動生成
                 access_code = register_user(password_input)
                 if access_code:
+                    st.success(f"✅ 登録完了！あなたのアクセスコードは `{access_code}` です。")
+                    st.code(access_code)
+                    # 認証情報保存
                     st.session_state.authenticated = True
                     st.session_state.password = password_input
                     st.session_state.generated_access_code = access_code
-                    st.success(f"登録完了！アクセスコード: `{access_code}`")
-                    st.code(access_code)
+                    st.session_state.page = "ToDoリスト"
+                    st.rerun()
                 else:
-                    st.warning("すでに登録されているパスワードです。他のものを使用してください。")
+                    st.warning("⚠ このパスワードはすでに使用されています。他のものを使用してください。")
+        else:
+            st.info("※ 4桁の数字で入力してください")
+    
+    # --- 既存ログイン ---
     else:
         access_code = st.text_input("アクセスコードを入力してください")
         if len(password_input) == 4 and password_input.isdigit() and access_code:
-            user = authenticate_user(password_input, access_code)
-            if user:
-                st.success("ログイン成功！")
-                st.session_state.authenticated = True
-                st.session_state.password = password_input
-                st.rerun()
-            else:
-                st.error("パスワードまたはアクセスコードが正しくありません")
+            if st.button("アプリを開始"):
+                user = authenticate_user(password_input, access_code)
+                if user:
+                    st.success("✅ ログイン成功！")
+                    st.session_state.authenticated = True
+                    st.session_state.password = password_input
+                    st.session_state.generated_access_code = access_code
+                    st.session_state.page = "ToDoリスト"
+                    st.rerun()
+                else:
+                    st.error("❌ パスワードまたはアクセスコードが正しくありません")
 
     st.stop()
 
 # --- ログイン済みユーザーの処理 ---
 if st.session_state.authenticated:
+
+    # --- サイドバー（ページ選択 & ログアウト） ---
     with st.sidebar:
         st.title("ページ選択")
         st.session_state.page = st.radio(
@@ -150,32 +152,38 @@ if st.session_state.authenticated:
             st.session_state.page = ""
             st.rerun()
 
+    # --- ページ分岐処理 ---
     page = st.session_state.page
 
-    elif page == "評価フォーム":
+    if page == "評価フォーム":
+        # ✅ 評価フォームの処理をここに記述
         st.title("📝 シャント機能評価フォーム")
-        # ← 今ある 評価フォーム のコードをここに移動！
+        st.info("シャント評価フォームの処理を書く場所です")
 
     elif page == "ToDoリスト":
+        # ✅ ToDoリスト機能をここに記述
         st.title("📝 ToDoリスト")
         st.info("ToDoリスト機能を実装する場所")
 
     elif page == "シミュレーションツール":
+        # ✅ シミュレーションロジックを記述
         st.title("🔢 シミュレーションツール")
         st.info("計算や予測ツールを追加")
 
     elif page == "記録一覧とグラフ":
+        # ✅ 記録表示とグラフ描画
         st.title("📊 記録一覧とグラフ")
         st.info("記録一覧、グラフなどを表示")
 
     elif page == "患者管理":
+        # ✅ 氏名変更・削除などの管理機能
         st.title("🗂️ 患者管理")
         st.info("患者別のアクセスや権限を管理")
 
     elif page == "患者データ一覧":
+        # ✅ Boxplot や比較など
         st.title("🧾 患者データ一覧")
         st.info("全データをリストで表示")
-
 
     # ユーザーごとの DB 接続
     user_dir = f"data/user_{st.session_state.password}"
@@ -306,9 +314,10 @@ if st.session_state.authenticated and page == "シミュレーションツール
         st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
         st.metric("TAVR", f"{TAVR:.2f}")
 
-# --- 評価フォーム（Supabase 対応） ---
-if page == "評価フォーム":
-    st.title("シャント機能評価フォーム")
+if st.session_state.authenticated:
+    if page == "評価フォーム":
+        st.title("📝 シャント機能評価フォーム")
+        # 評価フォームの処理
 
     try:
         df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
@@ -464,8 +473,9 @@ if page == "評価フォーム":
     st.write("🔐 Supabaseログイン情報:", supabase.auth.get_user())
 
 # 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
-if page == "記録一覧とグラフ":
-    st.title("記録の一覧と経時変化グラフ")
+if st.session_state.authenticated:
+    if page == "記録一覧とグラフ":
+        st.title("記録の一覧と経時変化グラフ")
     try:
         response = supabase.table("shunt_records").select("*").execute()
         df = pd.DataFrame(response.data)
@@ -606,10 +616,11 @@ if page == "記録一覧とグラフ":
         st.info("記録がまだありません。")
 
 # ページ：患者管理
-if page == "患者管理":
-    st.title("患者管理リスト")
-    response = supabase.table("shunt_records").select("*").execute()
-    df = pd.DataFrame(response.data)
+if st.session_state.authenticated:
+    if page == "患者管理":
+        st.title("患者管理リスト")
+        response = supabase.table("shunt_records").select("*").execute()
+        df = pd.DataFrame(response.data)
 
     if not df.empty:
         # ✅ 日付を日本時間に変換し、表示形式を整える
@@ -761,10 +772,11 @@ def draw_boxplot_with_median_outliers(data, metric, category_col):
     return fig
 
 # ページ：患者データ一覧
-if page == "患者データ一覧":
-    st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
-    response = supabase.table("shunt_records").select("*").execute()
-    df = pd.DataFrame(response.data)
+if st.session_state.authenticated:
+    if page == "患者データ一覧":
+        st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
+        response = supabase.table("shunt_records").select("*").execute()
+        df = pd.DataFrame(response.data)
 
     if not df.empty:
         df["date"] = pd.to_datetime(df["date"])
