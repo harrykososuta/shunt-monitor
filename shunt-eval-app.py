@@ -486,23 +486,36 @@ if st.session_state.authenticated:
 if st.session_state.authenticated:
     if page == "記録一覧とグラフ":
         st.title("記録の一覧と経時変化グラフ")
-    try:
-        response = supabase.table("shunt_records").select("*").execute()
-        df = pd.DataFrame(response.data)
-    except Exception as e:
-        st.error(f"データの取得に失敗しました: {e}")
-        st.stop()
 
-    if not df.empty:
-        df["date"] = pd.to_datetime(df["date"])
-        df["date"] = df["date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Tokyo")
-        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            response = supabase.table("shunt_records").select("*").execute()
+            df = pd.DataFrame(response.data)
+        except Exception as e:
+            st.error(f"データの取得に失敗しました: {e}")
+            st.stop()
 
+        # 安全な日付処理
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+        try:
+            df["date"] = df["date"].dt.tz_localize("UTC")
+        except TypeError:
+            df["date"] = df["date"].dt.tz_convert("UTC")  # すでに tz-aware の場合
+
+        df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")  # ← JST に変換
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")  # 表示用に整形
+
+        # 🧠 以下は表示・フィルタ等のロジック（例として残す）
         filtered_names = df["name"].dropna().unique().tolist()
         if "" in filtered_names:
             filtered_names.remove("")
+
         selected_name = st.selectbox("表示する氏名を選択", filtered_names)
         df_filtered = df[df["name"] == selected_name]
+
+        st.write(f"### {selected_name} の記録一覧")
+        st.dataframe(df_filtered)
+
 
         columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
         if all(col in df_filtered.columns for col in columns):
