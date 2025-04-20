@@ -133,7 +133,6 @@ if not st.session_state.get("authenticated", False):
                     st.error("❌ パスワードまたはアクセスコードが正しくありません")
 
     st.stop()
-
 # --- ログイン済みユーザーの処理 ---
 if st.session_state.authenticated:
 
@@ -155,35 +154,49 @@ if st.session_state.authenticated:
     # --- ページ分岐処理 ---
     page = st.session_state.page
 
-    if page == "評価フォーム":
-        # ✅ 評価フォームの処理をここに記述
-        st.title("📝 シャント機能評価フォーム")
-        st.info("シャント評価フォームの処理を書く場所です")
-
-    elif page == "ToDoリスト":
-        # ✅ ToDoリスト機能をここに記述
+    if page == "ToDoリスト":
         st.title("📝 ToDoリスト")
         st.info("ToDoリスト機能を実装する場所")
+        # ToDoリストの処理（中身をここに移動）
 
     elif page == "シミュレーションツール":
-        # ✅ シミュレーションロジックを記述
         st.title("🔢 シミュレーションツール")
         st.info("計算や予測ツールを追加")
+        # シミュレーションの処理（ここに記述）
+
+    elif page == "評価フォーム":
+        st.title("📝 シャント機能評価フォーム")
+        # 🎯 評価フォームの処理をここに完全に記述する！
+        # 👇 ここに name 入力・TAV などの計算・保存処理などを移動する！
 
     elif page == "記録一覧とグラフ":
-        # ✅ 記録表示とグラフ描画
         st.title("📊 記録一覧とグラフ")
         st.info("記録一覧、グラフなどを表示")
+        # 記録＆グラフの表示処理ここに書く
 
     elif page == "患者管理":
-        # ✅ 氏名変更・削除などの管理機能
         st.title("🗂️ 患者管理")
         st.info("患者別のアクセスや権限を管理")
+        # 管理ページの中身ここに
 
     elif page == "患者データ一覧":
-        # ✅ Boxplot や比較など
         st.title("🧾 患者データ一覧")
         st.info("全データをリストで表示")
+        # Boxplotやデータ一覧処理をここに
+
+def show_todo_page():
+    st.title("📝 ToDoリスト")
+    ...
+
+def show_evaluation_page():
+    st.title("📝 シャント機能評価フォーム")
+    ...
+
+if page == "ToDoリスト":
+    show_todo_page()
+elif page == "評価フォーム":
+    show_evaluation_page()
+
 
     # ユーザーごとの DB 接続
     user_dir = f"data/user_{st.session_state.password}"
@@ -317,160 +330,159 @@ if st.session_state.authenticated and page == "シミュレーションツール
 if st.session_state.authenticated:
     if page == "評価フォーム":
         st.title("📝 シャント機能評価フォーム")
-        # 評価フォームの処理
-
-    try:
-        df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
-        name_list = list({entry['name'] for entry in df_names.data})
-    except Exception as e:
-        st.error(f"名前一覧の取得エラー: {e}")
-        name_list = []
-
-    date_selected = st.date_input("記録日を選択", value=datetime.date.today())
-
-    name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
-    if name_option == "新規入力":
-        name = st.text_input("氏名（任意）※本名では記入しないでください")
-    else:
-        name = st.selectbox("過去の患者名から選択", name_list)
-
-    tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
-    va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
-
-    fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
-    ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
-    pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.2)
-    tav = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=60.0)
-    tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=100.0)
-    psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
-    edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
-
-    # --- 評価スコアの計算 ---
-    score = 0
-    comments = []
-    if tav <= 34.5:
-        score += 1
-        comments.append("TAVが34.5 cm/s以下 → 低血流が疑われる")
-    if ri >= 0.68:
-        score += 1
-        comments.append("RIが0.68以上 → 高抵抗が疑われる")
-    if pi >= 1.3:
-        score += 1
-        comments.append("PIが1.3以上 → 脈波指数が高い")
-    if edv <= 40.4:
-        score += 1
-        comments.append("EDVが40.4 cm/s以下 → 拡張期血流速度が低い")
-
-    st.write("### 評価結果")
-    st.write(f"評価スコア: {score} / 4")
-    if score == 0:
-        st.success("シャント機能は正常です。経過観察が推奨されます。")
-    elif score in [1, 2]:
-        st.warning("シャント機能は要注意です。追加評価が必要です。")
-    else:
-        st.error("シャント不全のリスクが高いです。専門的な評価が必要です。")
-
-    if comments:
-        st.write("### 評価コメント")
-        for comment in comments:
-            st.write(f"- {comment}")
-
-    st.write("### 波形分類")
-    st.markdown("""
-    - Ⅰ・Ⅱ型：シャント機能は問題なし
-    - Ⅲ型：50％程度の狭窄があるため精査
-    - Ⅳ型：VAIVT提案念頭に精査
-    - Ⅴ型：シャント閉塞の可能性大
-    """)
-
-    with st.expander("📌 補足説明を表示"):
-        st.markdown("""
-        - Ⅰ型：抵抗が低く、血流も良好
-        - Ⅱ型：血流に若干の乱れ
-        - Ⅲ型：狭窄の兆候あり
-        - Ⅳ型：高度狭窄
-        - Ⅴ型：血流停止の可能性
-        """)
-
-    with st.expander("透析中の状態評価を入力"):
-        g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
-        blood_flow_setting = st.number_input("設定血液流量 (ml/min)", min_value=0.0)
-        issue_de = st.radio("脱血不良がありますか？", ["いいえ", "はい"])
-        de_type = st.radio("穿刺方向は？", ["順行性穿刺", "逆行性穿刺"]) if issue_de == "はい" else ""
-
-        issue_pressure = st.radio("静脈圧の上昇はありますか？", ["いいえ", "はい"])
-        static_pressure = mean_pressure = iap_ratio = 0.0
-        if issue_pressure == "はい" and va_type == "AVG":
-            static_pressure = st.number_input("静的静脈圧 (mmHg)", min_value=0.0)
-            mean_pressure = st.number_input("平均血圧 (mmHg)", min_value=0.0)
-            iap_ratio = static_pressure / mean_pressure if mean_pressure else 0.0
-
-        recirculation = st.number_input("再循環はありますか？ (％)", min_value=0.0, max_value=100.0)
-
-        if st.button("透析評価"):
-            if issue_de == "はい":
-                st.info("次回逆行性穿刺でお願いします" if de_type == "順行性穿刺" else "A穿刺部より末梢に狭窄が疑われます")
-            if issue_pressure == "はい":
-                if va_type == "AVF":
-                    st.info("V穿刺部より中枢に狭窄が疑われます")
-                elif static_pressure >= 40 and iap_ratio > 0.40:
-                    st.info("G-Vか中枢の狭窄が疑われます")
-            if (va_type == "AVF" and recirculation > 5) or (va_type == "AVG" and recirculation > 10):
-                st.info("穿刺部の再考、エコー検査を推奨します")
-
-    note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
-
-    with st.expander("📌 追加情報を表示"):
-        TAVR = tav / tamv if tamv != 0 else 0
-        RI_PI = ri / pi if pi != 0 else 0
-        st.write("### TAVRの算出")
-        st.write(f"TAVR: {TAVR:.2f}")
-        st.write("### RI/PI の算出")
-        st.write(f"RI/PI: {RI_PI:.2f}")
-        st.write("### 追加コメント")
-        st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
-        st.write("### 補足コメント")
-        st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
-
-    if st.button("記録を保存"):
-        if name and name.strip():
-            now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
-            comment_joined = "; ".join(comments)
-
-            user_info = supabase.auth.get_user()
-            access_code = user_info.user.id if user_info and user_info.user else None
-            st.write("🔑 現在のアクセスコード (auth.uid):", access_code)
 
         try:
-            prev = supabase.table("shunt_records").select("anon_id") \
-                .eq("name", name).order("date", desc=True).limit(1).execute()
-            anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
-            supabase.table("shunt_records").insert({
-                "anon_id": anon_id,
-                "name": name,
-                "date": now,
-                "FV": fv,
-                "RI": ri,
-                "PI": pi,
-                "TAV": tav,
-                "TAMV": tamv,
-                "PSV": psv,
-                "EDV": edv,
-                "score": score,
-                "comment": comment_joined,
-                "tag": tag,
-                "note": note,
-                "va_type": va_type,
-                "access_code": access_code
-            }).execute()
-            st.success("記録が保存されました。")
+            df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
+            name_list = list({entry['name'] for entry in df_names.data})
         except Exception as e:
-            st.error(f"保存中にエラーが発生しました: {e}")
-    else:
-        st.warning("氏名を入力してください（匿名可・本名以外でOK）")
-    
-    # ✅ 最後にログイン情報を表示（デバッグ確認用）
-    st.write("🔐 Supabaseログイン情報:", supabase.auth.get_user())
+            st.error(f"名前一覧の取得エラー: {e}")
+            name_list = []
+
+        date_selected = st.date_input("記録日を選択", value=datetime.date.today())
+
+        name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
+        if name_option == "新規入力":
+            name = st.text_input("氏名（任意）※本名では記入しないでください")
+        else:
+            name = st.selectbox("過去の患者名から選択", name_list)
+
+        tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
+        va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
+
+        fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
+        ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
+        pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.2)
+        tav = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=60.0)
+        tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=100.0)
+        psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
+        edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
+
+        # --- 評価スコアの計算 ---
+        score = 0
+        comments = []
+        if tav <= 34.5:
+            score += 1
+            comments.append("TAVが34.5 cm/s以下 → 低血流が疑われる")
+        if ri >= 0.68:
+            score += 1
+            comments.append("RIが0.68以上 → 高抵抗が疑われる")
+        if pi >= 1.3:
+            score += 1
+            comments.append("PIが1.3以上 → 脈波指数が高い")
+        if edv <= 40.4:
+            score += 1
+            comments.append("EDVが40.4 cm/s以下 → 拡張期血流速度が低い")
+
+        st.write("### 評価結果")
+        st.write(f"評価スコア: {score} / 4")
+        if score == 0:
+            st.success("シャント機能は正常です。経過観察が推奨されます。")
+        elif score in [1, 2]:
+            st.warning("シャント機能は要注意です。追加評価が必要です。")
+        else:
+            st.error("シャント不全のリスクが高いです。専門的な評価が必要です。")
+
+        if comments:
+            st.write("### 評価コメント")
+            for comment in comments:
+                st.write(f"- {comment}")
+
+        st.write("### 波形分類")
+        st.markdown("""
+        - Ⅰ・Ⅱ型：シャント機能は問題なし  
+        - Ⅲ型：50％程度の狭窄があるため精査  
+        - Ⅳ型：VAIVT提案念頭に精査  
+        - Ⅴ型：シャント閉塞の可能性大
+        """)
+
+        with st.expander("📌 補足説明を表示"):
+            st.markdown("""
+            - Ⅰ型：抵抗が低く、血流も良好  
+            - Ⅱ型：血流に若干の乱れ  
+            - Ⅲ型：狭窄の兆候あり  
+            - Ⅳ型：高度狭窄  
+            - Ⅴ型：血流停止の可能性
+            """)
+
+        with st.expander("透析中の状態評価を入力"):
+            g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
+            blood_flow_setting = st.number_input("設定血液流量 (ml/min)", min_value=0.0)
+            issue_de = st.radio("脱血不良がありますか？", ["いいえ", "はい"])
+            de_type = st.radio("穿刺方向は？", ["順行性穿刺", "逆行性穿刺"]) if issue_de == "はい" else ""
+
+            issue_pressure = st.radio("静脈圧の上昇はありますか？", ["いいえ", "はい"])
+            static_pressure = mean_pressure = iap_ratio = 0.0
+            if issue_pressure == "はい" and va_type == "AVG":
+                static_pressure = st.number_input("静的静脈圧 (mmHg)", min_value=0.0)
+                mean_pressure = st.number_input("平均血圧 (mmHg)", min_value=0.0)
+                iap_ratio = static_pressure / mean_pressure if mean_pressure else 0.0
+
+            recirculation = st.number_input("再循環はありますか？ (％)", min_value=0.0, max_value=100.0)
+
+            if st.button("透析評価"):
+                if issue_de == "はい":
+                    st.info("次回逆行性穿刺でお願いします" if de_type == "順行性穿刺" else "A穿刺部より末梢に狭窄が疑われます")
+                if issue_pressure == "はい":
+                    if va_type == "AVF":
+                        st.info("V穿刺部より中枢に狭窄が疑われます")
+                    elif static_pressure >= 40 and iap_ratio > 0.40:
+                        st.info("G-Vか中枢の狭窄が疑われます")
+                if (va_type == "AVF" and recirculation > 5) or (va_type == "AVG" and recirculation > 10):
+                    st.info("穿刺部の再考、エコー検査を推奨します")
+
+        note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
+
+        with st.expander("📌 追加情報を表示"):
+            TAVR = tav / tamv if tamv != 0 else 0
+            RI_PI = ri / pi if pi != 0 else 0
+            st.write("### TAVRの算出")
+            st.write(f"TAVR: {TAVR:.2f}")
+            st.write("### RI/PI の算出")
+            st.write(f"RI/PI: {RI_PI:.2f}")
+            st.write("### 追加コメント")
+            st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
+            st.write("### 補足コメント")
+            st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
+
+        if st.button("記録を保存"):
+            if name and name.strip():
+                now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+                comment_joined = "; ".join(comments)
+
+                user_info = supabase.auth.get_user()
+                access_code = user_info.user.id if user_info and user_info.user else None
+                st.write("🔑 現在のアクセスコード (auth.uid):", access_code)
+
+                try:
+                    prev = supabase.table("shunt_records").select("anon_id") \
+                        .eq("name", name).order("date", desc=True).limit(1).execute()
+                    anon_id = prev.data[0]['anon_id'] if prev.data else str(uuid.uuid4())[:8]
+                    supabase.table("shunt_records").insert({
+                        "anon_id": anon_id,
+                        "name": name,
+                        "date": now,
+                        "FV": fv,
+                        "RI": ri,
+                        "PI": pi,
+                        "TAV": tav,
+                        "TAMV": tamv,
+                        "PSV": psv,
+                        "EDV": edv,
+                        "score": score,
+                        "comment": comment_joined,
+                        "tag": tag,
+                        "note": note,
+                        "va_type": va_type,
+                        "access_code": access_code
+                    }).execute()
+                    st.success("記録が保存されました。")
+                except Exception as e:
+                    st.error(f"保存中にエラーが発生しました: {e}")
+            else:
+                st.warning("氏名を入力してください（匿名可・本名以外でOK）")
+
+        # ✅ 最後にログイン情報を表示（デバッグ確認用）
+        st.write("🔐 Supabaseログイン情報:", supabase.auth.get_user())
 
 # 記録一覧とグラフページでの経時変化グラフ使用例（Supabase 対応）
 if st.session_state.authenticated:
