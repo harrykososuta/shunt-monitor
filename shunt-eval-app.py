@@ -151,7 +151,8 @@ if st.session_state.authenticated:
             st.rerun()
 
     page = st.session_state.page
-    if page == "評価フォーム":
+
+    elif page == "評価フォーム":
         st.title("📝 シャント機能評価フォーム")
         # ← 今ある 評価フォーム のコードをここに移動！
 
