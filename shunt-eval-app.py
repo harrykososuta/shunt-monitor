@@ -25,23 +25,23 @@ from dotenv import load_dotenv
 matplotlib.rcParams['font.family'] = 'MS Gothic'
 
 # --- シミュレーション用の定数（復元済み） ---
-baseline_FV = 500
-baseline_RI = 0.6
+baseline_FV = 380
+baseline_RI = 0.68
 baseline_diameter = 5.0
 
 coefficients = {
-    "PSV": 0.5,
-    "EDV": 0.2,
-    "TAV": 0.35,
-    "TAMV": 0.4
+    "PSV": [37.664, 0.0619, 52.569, -1.2],
+    "EDV": [69.506, 0.0305, -74.499, -0.8],
+    "TAV": [45.0, 0.031, -33.0, -0.5],
+    "TAMV": [64.5, 0.044, -29.5, -1.0]
 }
 
 # --- シミュレーション用の関数 ---
-def calculate_parameter(FV, RI, diameter, coef):
-    return coef * FV / (RI * diameter)
+def calculate_parameter(FV, RI, diameter, coeffs):
+    return coeffs[0] + coeffs[1]*FV + coeffs[2]*RI + coeffs[3]*diameter
 
-def calculate_tavr(tav, tamv):
-    return tav / tamv if tamv != 0 else 0
+def calculate_tavr(TAV, TAMV):
+    return TAV / TAMV if TAMV != 0 else 0
 
 # --- .env 読み込み ---
 load_dotenv()
@@ -300,15 +300,12 @@ if st.session_state.authenticated:
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
-    st.markdown("---")
-
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         FV = st.slider("血流量 FV (ml/min)", min_value=100, max_value=2000, value=int(baseline_FV), step=10)
         RI = st.slider("抵抗指数 RI", min_value=0.4, max_value=1.0, value=float(baseline_RI), step=0.01)
-        diameter = st.slider("血管幅 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
+        diameter = st.slider("血管径 (mm)", min_value=3.0, max_value=7.0, value=baseline_diameter, step=0.1)
 
-    # パラメータ計算
     PSV = calculate_parameter(FV, RI, diameter, coefficients["PSV"])
     EDV = calculate_parameter(FV, RI, diameter, coefficients["EDV"])
     TAV = calculate_parameter(FV, RI, diameter, coefficients["TAV"])
@@ -326,6 +323,7 @@ if st.session_state.authenticated and page == "シミュレーションツール
         st.metric("TAV (cm/s)", f"{TAV:.2f}")
         st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
         st.metric("TAVR", f"{TAVR:.2f}")
+
 
 if st.session_state.authenticated and page == "評価フォーム":
     
