@@ -166,8 +166,6 @@ if st.session_state.authenticated:
 
     elif page == "評価フォーム":
         st.title("📝 シャント機能評価フォーム")
-        # 🎯 評価フォームの処理をここに完全に記述する！
-        # 👇 ここに name 入力・TAV などの計算・保存処理などを移動する！
 
     elif page == "記録一覧とグラフ":
         st.title("📊 記録一覧とグラフ")
@@ -189,7 +187,7 @@ def show_todo_page():
     ...
 
 def show_evaluation_page():
-    st.title("📝 シャント機能評価フォーム")
+    st.title("機能評価で管理する")
     ...
 
 if page == "ToDoリスト":
@@ -330,7 +328,7 @@ if st.session_state.authenticated and page == "シミュレーションツール
         st.metric("TAVR", f"{TAVR:.2f}")
 
 if st.session_state.authenticated and page == "評価フォーム":
-    st.title("📝 シャント機能評価フォーム")
+    
 
     try:
         df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
