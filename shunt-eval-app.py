@@ -486,7 +486,6 @@ if st.session_state.authenticated and page == "評価フォーム":
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
-
 if st.session_state.authenticated:
     if page == "記録一覧とグラフ":
         st.title("📊 記録の一覧と経時変化グラフ")
@@ -506,43 +505,37 @@ if st.session_state.authenticated:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
         if df["date"].dt.tz is None:
             df["date"] = df["date"].dt.tz_localize("UTC")
-        else:
-            df["date"] = df["date"].dt.tz_convert("UTC")
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         names = df["name"].dropna().unique().tolist()
         selected_name = st.selectbox("氏名を選択", names)
-        df_filtered = df[df["name"] == selected_name]
 
-        selected_datetime = st.selectbox("検査日時を選択", df_filtered["date"].dt.strftime("%Y-%m-%d %H:%M:%S"))
-        selected_record = df_filtered[df_filtered["date"].dt.strftime("%Y-%m-%d %H:%M:%S") == selected_datetime].iloc[-1]
+        df_filtered = df[df["name"] == selected_name]
+        selected_datetime = st.selectbox("検査日時を選択", df_filtered["date"].tolist())
+        selected_record = df_filtered[df_filtered["date"] == selected_datetime].iloc[-1]
+
         st.session_state.selected_record = selected_record
 
-        st.markdown("### 📄 記録一覧")
-        st.dataframe(df_filtered.sort_values(by="date", ascending=False), use_container_width=True)
+        st.write(f"### {selected_name} の記録一覧")
+        st.dataframe(df_filtered.sort_values("date"))
 
-        # 評価チャート設定
+        # === 評価チャート + 経時変化グラフ ===
         st.subheader("🧠 評価チャート")
-        duration = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
-        now = pd.Timestamp.now(tz="Asia/Tokyo")
-        if duration == "半年":
-            df_filtered = df_filtered[df_filtered["date"] >= now - pd.DateOffset(months=6)]
-        elif duration == "1年":
-            df_filtered = df_filtered[df_filtered["date"] >= now - pd.DateOffset(years=1)]
-        elif duration == "3年":
-            df_filtered = df_filtered[df_filtered["date"] >= now - pd.DateOffset(years=3)]
+        period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
 
-        col_chart, col_trend = st.columns([1, 2])
+        # 評価チャートと経時変化グラフを左右に分割
+        left, right = st.columns([1, 2])
         thresholds = {"TAV": 34.5, "RI": 0.68, "PI": 1.3, "EDV": 40.4}
         directions = {"TAV": "Above", "RI": "Above", "PI": "Above", "EDV": "Below"}
+        eval_params = ["TAV", "RI", "PI", "EDV"]
 
-        with col_chart:
-            for param in ["TAV", "RI", "PI", "EDV"]:
+        with left:
+            for param in eval_params:
                 val = selected_record[param]
                 base = thresholds[param]
                 direction = directions[param]
-
-                fig, ax = plt.subplots(figsize=(3.5, 1.5))
+                fig, ax = plt.subplots(figsize=(4, 1.5))
                 if direction == "Below":
                     ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
                     ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
@@ -551,97 +544,158 @@ if st.session_state.authenticated:
                     ax.axvspan(0, base, color='blue', alpha=0.1)
                     ax.axvspan(base, base * 1.1, color='yellow', alpha=0.2)
                     ax.axvspan(base * 1.1, base * 2, color='red', alpha=0.2)
-
                 ax.scatter(val, 0, color='red', s=100)
                 ax.set_xlim(0, base * 2)
                 ax.set_title(f"{param} Evaluation")
-                ax.set_yticks([])
                 st.pyplot(fig)
 
-        with col_trend:
-            st.markdown("### 📈 経時変化グラフ")
-            for metric in ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]:
-                fig, ax = plt.subplots(figsize=(5, 2.5))
-                ax.plot(df_filtered["date"], df_filtered[metric], marker="o")
-                ax.set_title(f"{metric} Trend")
-                ax.set_xticks(df_filtered["date"])
-                ax.set_xticklabels(df_filtered["date"].dt.strftime("%Y-%m-%d"), rotation=45, ha="right")
-                st.pyplot(fig)
+            st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
 
-        # スコアとパラメータ表示
-        st.markdown("### 📌 評価スコアと主要パラメータ")
-        st.write(f"評価スコア: **{selected_record['score']} / 4**")
-        st.dataframe(pd.DataFrame({
-            "Parameter": ["TAV", "RI", "PI", "EDV"],
-            "Value": [selected_record["TAV"], selected_record["RI"], selected_record["PI"], selected_record["EDV"]],
-            "Threshold": [34.5, 0.68, 1.3, 40.4]
-        }), use_container_width=True)
+        with right:
+            st.markdown("#### 📈 経時変化グラフ")
+            time_filtered = df_filtered.copy()
+            now = pd.Timestamp.now(tz="Asia/Tokyo")
+            if period != "全期間":
+                months = {"半年": 6, "1年": 12, "3年": 36}[period]
+                time_filtered["date_obj"] = pd.to_datetime(time_filtered["date"])
+                start_date = now - pd.DateOffset(months=months)
+                time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
 
-        # 所見入力
-        st.subheader("📝 所見入力")
+            metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+            col1, col2 = st.columns(2)
+            for i, metric in enumerate(metrics):
+                with (col1 if i % 2 == 0 else col2):
+                    fig2, ax2 = plt.subplots(figsize=(5, 2.5))
+                    ax2.plot(time_filtered["date"], time_filtered[metric], marker="o")
+                    ax2.set_title(f"{metric} Trend")
+                    ax2.set_xlabel("Date")
+                    ax2.set_ylabel(metric)
+                    ax2.grid(True)
+                    ax2.set_xticks(time_filtered["date"])
+                    ax2.set_xticklabels(time_filtered["date"], rotation=45, ha='right')
+                    st.pyplot(fig2)
+
+        # === 所見コメント ===
+        st.subheader("📝 所見コメント入力")
         comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
         followup_date = st.date_input("次回検査日")
 
         if st.button("この所見を保存"):
-            now = pd.Timestamp.now(tz="Asia/Tokyo")
             try:
+                now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
                 supabase.table("followups").insert({
                     "name": selected_name,
                     "comment": comment,
                     "followup_at": followup_date.strftime('%Y-%m-%d'),
-                    "created_at": now.strftime('%Y-%m-%d %H:%M:%S'),
+                    "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S'),
                     "access_code": access_code
                 }).execute()
-                st.success("所見を保存しました。")
+                st.success("保存しました。")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
-        # PDF出力
-        st.markdown("---")
+        # === PDF 出力 ===
         st.subheader("📄 レポートPDF出力")
-
         uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
         image_comment_pairs = []
-        for i, img in enumerate(uploaded_images[:5]):
-            comment_txt = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
-            path = f"/tmp/img_{i}.png"
-            with open(path, "wb") as f:
-                f.write(img.getbuffer())
-            image_comment_pairs.append((path, comment_txt))
+        if uploaded_images:
+            for i, img in enumerate(uploaded_images[:5]):
+                comment_txt = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
+                path = f"/tmp/img_{i}.png"
+                with open(path, "wb") as f:
+                    f.write(img.getbuffer())
+                image_comment_pairs.append((path, comment_txt))
 
         if st.button("📄 PDFを生成"):
             from fpdf import FPDF
-            pdf = FPDF()
-            pdf.add_font("IPAexG", "", "./ipagp.ttf", uni=True)
-            pdf.set_font("IPAexG", "", 12)
+            import os
+
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font("Arial", "B", 16)
+                    self.cell(0, 10, "Shunt Echo Record", ln=True, align="C")
+                    self.ln(5)
+
+                def basic_info(self, name, date, va_type):
+                    self.set_font("Arial", size=12)
+                    self.cell(0, 10, f"検査日: {date}", ln=True)
+                    self.cell(0, 10, f"氏名: {name}", ln=True)
+                    self.cell(0, 10, f"VA Type: {va_type}", ln=True)
+                    self.ln(5)
+
+                def parameter_table(self, params):
+                    self.set_font("Arial", size=12)
+                    self.cell(0, 10, "評価パラメータ", ln=True)
+                    self.set_fill_color(220, 220, 220)
+                    for label, value in params.items():
+                        self.cell(40, 10, label, border=1, fill=True)
+                        self.cell(0, 10, str(value), border=1, ln=True)
+                    self.ln(5)
+
+                def add_threshold_table(self, rows):
+                    self.set_font("Arial", size=12)
+                    self.cell(0, 10, "評価結果", ln=True)
+                    for i, row in enumerate(rows):
+                        for col in row:
+                            self.cell(40, 10, str(col), border=1)
+                        self.ln()
+
+                def add_score(self, score):
+                    self.set_font("Arial", "B", 14)
+                    if score >= 3:
+                        self.set_text_color(200, 0, 0)
+                    elif score >= 1:
+                        self.set_text_color(255, 140, 0)
+                    else:
+                        self.set_text_color(0, 128, 0)
+                    self.cell(0, 10, f"評価スコア: {score} / 4", ln=True)
+                    self.set_text_color(0, 0, 0)
+
+                def add_followup(self, comment, date):
+                    self.set_font("Arial", size=12)
+                    self.cell(0, 10, f"所見コメント: {comment}", ln=True)
+                    self.cell(0, 10, f"次回検査日: {date}", ln=True)
+
+                def add_images(self, image_list):
+                    self.set_font("Arial", size=12)
+                    if not image_list:
+                        self.cell(0, 10, "画像の添付はありませんでした。", ln=True)
+                        return
+                    for path, comment in image_list:
+                        if os.path.exists(path):
+                            self.image(path, w=90)
+                            self.set_font("Arial", size=10)
+                            self.multi_cell(0, 10, f"コメント: {comment}", border=1)
+
+            pdf = PDF()
             pdf.add_page()
-
-            pdf.cell(0, 10, f"検査日: {selected_record['date']}", ln=True)
-            pdf.cell(0, 10, f"氏名: {selected_record['name']}", ln=True)
-            pdf.cell(0, 10, f"VA Type: {selected_record['va_type']}", ln=True)
-            pdf.ln(5)
-
-            for label, value in {
+            pdf.basic_info(selected_record["name"], selected_record["date"], selected_record["va_type"])
+            pdf.parameter_table({
                 "FV": selected_record["FV"], "RI": selected_record["RI"], "PI": selected_record["PI"],
                 "TAV": selected_record["TAV"], "TAMV": selected_record["TAMV"],
                 "PSV": selected_record["PSV"], "EDV": selected_record["EDV"]
-            }.items():
-                pdf.cell(40, 10, label, border=1)
-                pdf.cell(0, 10, str(value), border=1, ln=True)
+            })
 
-            pdf.ln(5)
-            pdf.cell(0, 10, f"所見コメント: {comment}", ln=True)
-            pdf.cell(0, 10, f"次回検査日: {followup_date.strftime('%Y-%m-%d')}", ln=True)
+            rows = [["Param", "Value", "Threshold", "Result"]]
+            for p in eval_params:
+                v = selected_record[p]
+                t = thresholds[p]
+                d = directions[p]
+                result = "Above" if (d == "Above" and v > t) or (d == "Below" and v < t) else "Normal"
+                rows.append([p, v, t, result])
 
-            for img_path, comment in image_comment_pairs:
-                if os.path.exists(img_path):
-                    pdf.image(img_path, w=90)
-                    pdf.multi_cell(0, 10, f"コメント: {comment}", border=1)
+            pdf.add_threshold_table(rows)
+            pdf.add_score(selected_record["score"])
+            pdf.add_followup(comment, followup_date.strftime('%Y-%m-%d'))
+            pdf.add_images(image_comment_pairs)
 
-            output_path = "shunt_report.pdf"
-            pdf.output(output_path)
-            with open(output_path, "rb") as f:
-                st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
+            try:
+                path = "shunt_report.pdf"
+                pdf.output(path, "F")
+                with open(path, "rb") as f:
+                    st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
+            except Exception as e:
+                st.error(f"PDF出力エラー: {e}")
 
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
