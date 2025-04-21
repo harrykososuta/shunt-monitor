@@ -100,22 +100,25 @@ if not st.session_state.get("authenticated", False):
     if st.session_state.new_user:
         if len(password_input) == 4 and password_input.isdigit():
             if st.button("登録する"):
-                # 重複パスワードチェック & access_code 自動生成
                 access_code = register_user(password_input)
                 if access_code:
-                    st.success(f"✅ 登録完了！あなたのアクセスコードは `{access_code}` です。")
-                    st.code(access_code)
-                    # 認証情報保存
-                    st.session_state.authenticated = True
-                    st.session_state.password = password_input
                     st.session_state.generated_access_code = access_code
-                    st.session_state.page = "ToDoリスト"
-                    st.rerun()
+                    st.session_state.password = password_input
+                    st.session_state.registered = True
                 else:
                     st.warning("⚠ このパスワードはすでに使用されています。他のものを使用してください。")
         else:
             st.info("※ 4桁の数字で入力してください")
-    
+
+        if st.session_state.get("registered", False):
+            st.success(f"✅ 登録完了！あなたのアクセスコードは `{st.session_state.generated_access_code}` です。")
+            st.code(st.session_state.generated_access_code)
+            st.error("⚠ このアクセスコードは再度表示できません。必ずメモやスクリーンショット等で保存してください。")
+            if st.button("アプリを開始"):
+                st.session_state.authenticated = True
+                st.session_state.page = "ToDoリスト"
+                st.rerun()
+
     # --- 既存ログイン ---
     else:
         access_code = st.text_input("アクセスコードを入力してください")
@@ -133,6 +136,7 @@ if not st.session_state.get("authenticated", False):
                     st.error("❌ パスワードまたはアクセスコードが正しくありません")
 
     st.stop()
+
 # --- ログイン済みユーザーの処理 ---
 if st.session_state.authenticated:
 
