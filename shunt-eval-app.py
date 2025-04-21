@@ -13,6 +13,8 @@ import seaborn as sns
 import pytz
 from scipy.stats import mannwhitneyu
 from fpdf import FPDF
+from pdf2image import convert_from_path
+from io import BytesIO
 
 from supabase import create_client, Client
 # Supabase 接続設定
@@ -586,112 +588,83 @@ if st.session_state.authenticated:
                                 st.pyplot(fig)                           
                             st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
                             
-                            class PDF(FPDF):
-                                def header(self):
-                                    self.set_font("Arial", "B", 16)
-                                    self.cell(0, 10, "Shunt Echo Record", ln=True, align="C")
-                                    self.ln(5)
+                            # PDF出力・プレビュー表示
+                            if st.button("📄 PDF出力とプレビュー表示"):
+                                from fpdf import FPDF
+                                from pdf2image import convert_from_path
+                                from io import BytesIO
 
-                                def basic_info(self, name, date, va_type):
-                                    self.set_font("Arial", size=12)
-                                    self.cell(0, 10, f"検査日: {date}", ln=True)
-                                    self.cell(0, 10, f"氏名: {name}", ln=True)
-                                    self.cell(0, 10, f"VA Type: {va_type}", ln=True)
-                                    self.ln(5)
+                                class PDF(FPDF):
+                                    def header(self):
+                                        self.set_font("Arial", "B", 16)
+                                        self.cell(0, 10, "Shunt Echo Record", ln=True, align="C")
+                                        self.ln(5)
 
-                                def parameter_table(self, params):
-                                    self.set_font("Arial", size=12)
-                                    self.cell(0, 10, "評価パラメータ", ln=True)
-                                    self.set_fill_color(220, 220, 220)
-                                    for label, value in params.items():
-                                        self.cell(40, 10, label, border=1, fill=True)
-                                        self.cell(0, 10, str(value), border=1, ln=True)
-                                    self.ln(5)
+                                    def basic_info(self, name, date, va_type):
+                                        self.set_font("Arial", size=12)
+                                        self.cell(0, 10, f"検査日: {date}", ln=True)
+                                        self.cell(0, 10, f"氏名: {name}", ln=True)
+                                        self.cell(0, 10, f"VA Type: {va_type}", ln=True)
+                                        self.ln(5)
 
-                                def add_comment_section(self, comment):
-                                    self.set_font("Arial", size=12)
-                                    self.multi_cell(0, 10, f"コメント:\n{comment}", border=1)
-                                    self.ln(5)
+                                    def parameter_table(self, params):
+                                        self.set_font("Arial", size=12)
+                                        self.cell(0, 10, "評価パラメータ", ln=True)
+                                        self.set_fill_color(220, 220, 220)
+                                        for label, value in params.items():
+                                            self.cell(40, 10, label, border=1, fill=True)
+                                            self.cell(0, 10, str(value), border=1, ln=True)
+                                        self.ln(5)
 
-                                def add_threshold_table(self, thresholds):
-                                    self.set_font("Arial", size=12)
-                                    self.cell(0, 10, "TAV・RI・PI・EDV の評価", ln=True)
-                                    self.set_fill_color(220, 220, 220)
-                                    for i, row in enumerate(thresholds):
-                                        for col in row:
-                                            self.cell(40, 10, str(col), border=1, fill=(i == 0))
-                                        self.ln()
-                                    self.ln(5)
+                                    def add_comment_section(self, comment):
+                                        self.set_font("Arial", size=12)
+                                        self.multi_cell(0, 10, f"コメント:\n{comment}", border=1)
+                                        self.ln(5)
 
-                                def add_score(self, score):
-                                    self.set_font("Arial", "B", 14)
-                                    if score >= 3:
-                                        self.set_text_color(200, 0, 0)
-                                    elif score >= 1:
-                                        self.set_text_color(255, 140, 0)
-                                    else:
-                                        self.set_text_color(0, 128, 0)
-                                    self.cell(0, 10, f"評価スコア: {score} / 4", ln=True)
-                                    self.set_text_color(0, 0, 0)
-                                    self.ln(5)
+                                    def add_threshold_table(self, thresholds):
+                                        self.set_font("Arial", size=12)
+                                        self.cell(0, 10, "TAV・RI・PI・EDV の評価", ln=True)
+                                        self.set_fill_color(220, 220, 220)
+                                        for i, row in enumerate(thresholds):
+                                            for col in row:
+                                                self.cell(40, 10, str(col), border=1, fill=(i == 0))
+                                            self.ln()
+                                        self.ln(5)
 
-                                def add_images(self, images_with_comments):
-                                    for img_path, comment in images_with_comments:
-                                        if os.path.exists(img_path):
-                                            self.image(img_path, w=90)
-                                            self.set_font("Arial", size=10)
-                                            self.multi_cell(0, 10, f"コメント: {comment}", border=1)
-                                            self.ln(5)
+                                    def add_score(self, score):
+                                        self.set_font("Arial", "B", 14)
+                                        if score >= 3:
+                                            self.set_text_color(200, 0, 0)
+                                        elif score >= 1:
+                                            self.set_text_color(255, 140, 0)
+                                        else:
+                                            self.set_text_color(0, 128, 0)
+                                        self.cell(0, 10, f"評価スコア: {score} / 4", ln=True)
+                                        self.set_text_color(0, 0, 0)
+                                        self.ln(5)
 
-                                def add_followup(self, comment, date):
-                                    self.set_font("Arial", size=12)
-                                    self.cell(0, 10, f"所見コメント: {comment}", ln=True)
-                                    self.cell(0, 10, f"次回検査日: {date}", ln=True)
+                                    def add_followup(self, comment, date):
+                                        self.set_font("Arial", size=12)
+                                        self.cell(0, 10, f"所見コメント: {comment}", ln=True)
+                                        self.cell(0, 10, f"次回検査日: {date}", ln=True)
 
-                            # Streamlit PDF プレビュー & ダウンロード連携
-                            st.title("📄 レポートPDF出力（プロトタイプ）")
-
-                            uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-                            image_comment_pairs = []
-
-                            if uploaded_images:
-                                for i, img in enumerate(uploaded_images[:5]):
-                                    comment = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
-                                    path = f"/tmp/img_{i}.png"
-                                    with open(path, "wb") as f:
-                                        f.write(img.getbuffer())
-                                    image_comment_pairs.append((path, comment))
-
-                            # 仮データ
-                            data = {
-                                "name": "a",
-                                "date": "2025-04-21 14:50:15",
-                                "va_type": "AVF",
-                                "params": {"FV": 400, "RI": 0.6, "PI": 1.2, "TAV": 60, "TAMV": 100, "PSV": 120, "EDV": 50},
-                                "comment": "シャント機能は正常です。経過観察が推奨されます。",
-                                "thresholds": [
-                                    ["Parameter", "Value", "Threshold", "Direction"],
-                                    ["TAV", 60, 34.5, "Above"],
-                                    ["RI", 0.6, 0.68, "Below"],
-                                    ["PI", 1.2, 1.3, "Below"],
-                                    ["EDV", 50, 40.4, "Above"]
-                                ],
-                                "score": 0,
-                                "images": image_comment_pairs,
-                                "followup_comment": st.text_input("所見コメントを記入", value="次回透析日に評価"),
-                                "followup_date": st.date_input("次回検査日を選択", value=pd.to_datetime("2025-05-01"))
-                            }
-
-                            if st.button("📄 PDFを生成する"):
                                 pdf = PDF()
                                 pdf.add_page()
-                                pdf.basic_info(data['name'], data['date'], data['va_type'])
-                                pdf.parameter_table(data['params'])
-                                pdf.add_comment_section(data['comment'])
-                                pdf.add_threshold_table(data['thresholds'])
-                                pdf.add_score(data['score'])
-                                pdf.add_images(data['images'])
-                                pdf.add_followup(data['followup_comment'], data['followup_date'])
+                                pdf.basic_info(latest['name'], latest['date'], latest['va_type'])
+                                pdf.parameter_table({
+                                    "FV": latest["FV"], "RI": latest["RI"], "PI": latest["PI"],
+                                    "TAV": latest["TAV"], "TAMV": latest["TAMV"], "PSV": latest["PSV"], "EDV": latest["EDV"]
+                                })
+                                pdf.add_comment_section(latest["comment"])
+                                pdf.add_threshold_table([
+                                    ["Parameter", "Value", "Threshold", "Direction"],
+                                    ["TAV", latest["TAV"], 34.5, "Above"],
+                                    ["RI", latest["RI"], 0.68, "Above" if latest["RI"] >= 0.68 else "Below"],
+                                    ["PI", latest["PI"], 1.3, "Above" if latest["PI"] >= 1.3 else "Below"],
+                                    ["EDV", latest["EDV"], 40.4, "Below" if latest["EDV"] <= 40.4 else "Above"]
+                                ])
+                                pdf.add_score(latest["score"])
+                                pdf.add_followup(comment, followup_date.strftime('%Y-%m-%d') if followup_date else "未定")
 
                                 output_path = "shunt_report.pdf"
                                 pdf.output(output_path)
@@ -700,7 +673,7 @@ if st.session_state.authenticated:
                                 with open(output_path, "rb") as f:
                                     st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
 
-                                # PDF プレビュー表示
+                                # PDF プレビュー画像に変換して表示
                                 try:
                                     images = convert_from_path(output_path, dpi=200)
                                     for img in images:
