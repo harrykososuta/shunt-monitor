@@ -12,6 +12,7 @@ import sqlite3
 import seaborn as sns
 import pytz
 from scipy.stats import mannwhitneyu
+from fpdf import FPDF
 
 from supabase import create_client, Client
 # Supabase 接続設定
@@ -333,7 +334,12 @@ if st.session_state.authenticated and page == "評価フォーム":
     
 
     try:
-        df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
+        access_code = st.session_state.generated_access_code
+        df_names = supabase.table("shunt_records") \
+            .select("name") \
+            .neq("name", "") \
+            .eq("access_code", access_code) \
+            .execute()
         name_list = list({entry['name'] for entry in df_names.data})
     except Exception as e:
         st.error(f"名前一覧の取得エラー: {e}")
@@ -485,7 +491,8 @@ if st.session_state.authenticated:
         st.title("記録の一覧と経時変化グラフ")
 
         try:
-            response = supabase.table("shunt_records").select("*").execute()
+            access_code = st.session_state.generated_access_code
+            response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
             df = pd.DataFrame(response.data)
         except Exception as e:
             st.error(f"データの取得に失敗しました: {e}")
@@ -541,7 +548,7 @@ if st.session_state.authenticated:
                         col1, col2 = st.columns(2)
                         with col1:
                             st.markdown(f"**Patient Name**: {latest['name']}")
-                            st.markdown(f"**Generated At**: {datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')}")
+                            st.markdown(f"**Generated At**: {datetime.datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')}")
 
                             report_df = pd.DataFrame({
                                 "Parameter": ["TAV", "RI", "PI", "EDV"],
@@ -576,9 +583,132 @@ if st.session_state.authenticated:
                                     ax.set_xticks(xticks)
                                 ax.set_title(f"{param} Evaluation")
                                 ax.set_xlabel("Value")
-                                st.pyplot(fig)
-
+                                st.pyplot(fig)                           
                             st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
+                            
+                            class PDF(FPDF):
+                                def header(self):
+                                    self.set_font("Arial", "B", 16)
+                                    self.cell(0, 10, "Shunt Echo Record", ln=True, align="C")
+                                    self.ln(5)
+
+                                def basic_info(self, name, date, va_type):
+                                    self.set_font("Arial", size=12)
+                                    self.cell(0, 10, f"検査日: {date}", ln=True)
+                                    self.cell(0, 10, f"氏名: {name}", ln=True)
+                                    self.cell(0, 10, f"VA Type: {va_type}", ln=True)
+                                    self.ln(5)
+
+                                def parameter_table(self, params):
+                                    self.set_font("Arial", size=12)
+                                    self.cell(0, 10, "評価パラメータ", ln=True)
+                                    self.set_fill_color(220, 220, 220)
+                                    for label, value in params.items():
+                                        self.cell(40, 10, label, border=1, fill=True)
+                                        self.cell(0, 10, str(value), border=1, ln=True)
+                                    self.ln(5)
+
+                                def add_comment_section(self, comment):
+                                    self.set_font("Arial", size=12)
+                                    self.multi_cell(0, 10, f"コメント:\n{comment}", border=1)
+                                    self.ln(5)
+
+                                def add_threshold_table(self, thresholds):
+                                    self.set_font("Arial", size=12)
+                                    self.cell(0, 10, "TAV・RI・PI・EDV の評価", ln=True)
+                                    self.set_fill_color(220, 220, 220)
+                                    for i, row in enumerate(thresholds):
+                                        for col in row:
+                                            self.cell(40, 10, str(col), border=1, fill=(i == 0))
+                                        self.ln()
+                                    self.ln(5)
+
+                                def add_score(self, score):
+                                    self.set_font("Arial", "B", 14)
+                                    if score >= 3:
+                                        self.set_text_color(200, 0, 0)
+                                    elif score >= 1:
+                                        self.set_text_color(255, 140, 0)
+                                    else:
+                                        self.set_text_color(0, 128, 0)
+                                    self.cell(0, 10, f"評価スコア: {score} / 4", ln=True)
+                                    self.set_text_color(0, 0, 0)
+                                    self.ln(5)
+
+                                def add_images(self, images_with_comments):
+                                    for img_path, comment in images_with_comments:
+                                        if os.path.exists(img_path):
+                                            self.image(img_path, w=90)
+                                            self.set_font("Arial", size=10)
+                                            self.multi_cell(0, 10, f"コメント: {comment}", border=1)
+                                            self.ln(5)
+
+                                def add_followup(self, comment, date):
+                                    self.set_font("Arial", size=12)
+                                    self.cell(0, 10, f"所見コメント: {comment}", ln=True)
+                                    self.cell(0, 10, f"次回検査日: {date}", ln=True)
+
+                            # Streamlit PDF プレビュー & ダウンロード連携
+                            st.title("📄 レポートPDF出力（プロトタイプ）")
+
+                            uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+                            image_comment_pairs = []
+
+                            if uploaded_images:
+                                for i, img in enumerate(uploaded_images[:5]):
+                                    comment = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
+                                    path = f"/tmp/img_{i}.png"
+                                    with open(path, "wb") as f:
+                                        f.write(img.getbuffer())
+                                    image_comment_pairs.append((path, comment))
+
+                            # 仮データ
+                            data = {
+                                "name": "a",
+                                "date": "2025-04-21 14:50:15",
+                                "va_type": "AVF",
+                                "params": {"FV": 400, "RI": 0.6, "PI": 1.2, "TAV": 60, "TAMV": 100, "PSV": 120, "EDV": 50},
+                                "comment": "シャント機能は正常です。経過観察が推奨されます。",
+                                "thresholds": [
+                                    ["Parameter", "Value", "Threshold", "Direction"],
+                                    ["TAV", 60, 34.5, "Above"],
+                                    ["RI", 0.6, 0.68, "Below"],
+                                    ["PI", 1.2, 1.3, "Below"],
+                                    ["EDV", 50, 40.4, "Above"]
+                                ],
+                                "score": 0,
+                                "images": image_comment_pairs,
+                                "followup_comment": st.text_input("所見コメントを記入", value="次回透析日に評価"),
+                                "followup_date": st.date_input("次回検査日を選択", value=pd.to_datetime("2025-05-01"))
+                            }
+
+                            if st.button("📄 PDFを生成する"):
+                                pdf = PDF()
+                                pdf.add_page()
+                                pdf.basic_info(data['name'], data['date'], data['va_type'])
+                                pdf.parameter_table(data['params'])
+                                pdf.add_comment_section(data['comment'])
+                                pdf.add_threshold_table(data['thresholds'])
+                                pdf.add_score(data['score'])
+                                pdf.add_images(data['images'])
+                                pdf.add_followup(data['followup_comment'], data['followup_date'])
+
+                                output_path = "shunt_report.pdf"
+                                pdf.output(output_path)
+
+                                st.success("✅ PDFを生成しました！")
+                                with open(output_path, "rb") as f:
+                                    st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
+
+                                # PDF プレビュー表示
+                                try:
+                                    images = convert_from_path(output_path, dpi=200)
+                                    for img in images:
+                                        buf = BytesIO()
+                                        img.save(buf, format="PNG")
+                                        st.image(buf.getvalue(), caption="📄 プレビュー表示", use_column_width=True)
+                                except Exception as e:
+                                    st.error(f"PDFプレビュー生成に失敗しました: {e}")
 
                             comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"], key="comment_select")
 
@@ -639,7 +769,8 @@ if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
 
     try:
-        response = supabase.table("shunt_records").select("*").execute()
+        access_code = st.session_state.generated_access_code
+        response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
         df = pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
@@ -754,7 +885,11 @@ if st.session_state.authenticated and page == "患者管理":
 
             if st.session_state.confirm_edit:
                 if st.button("⚠ 本当に氏名を更新しますか？（再クリックで実行）"):
-                    supabase.table("shunt_records").update({"name": new_name}).eq("name", edit_target_name).execute()
+                    supabase.table("shunt_records") \
+                        .update({"name": new_name}) \
+                        .eq("name", edit_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
                     st.success("氏名を更新しました。ページを再読み込みしてください。")
                     st.session_state.confirm_edit = False
 
@@ -775,7 +910,11 @@ if st.session_state.authenticated and page == "患者管理":
 
             if st.session_state.confirm_delete:
                 if st.button("⚠ 本当に削除しますか？（再クリックで実行）"):
-                    supabase.table("shunt_records").delete().eq("name", delete_target_name).execute()
+                    supabase.table("shunt_records") \
+                        .delete() \
+                        .eq("name", delete_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
                     st.success("記録を削除しました。ページを再読み込みしてください。")
                     st.session_state.confirm_delete = False
 
@@ -803,7 +942,8 @@ if st.session_state.authenticated and page == "患者データ一覧":
     st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
 
     try:
-        response = supabase.table("shunt_records").select("*").execute()
+        access_code = st.session_state.generated_access_code
+        response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
         df = pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"データ取得に失敗しました: {e}")
