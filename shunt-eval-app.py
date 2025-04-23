@@ -700,16 +700,16 @@ if st.session_state.authenticated:
 
                     if uploaded_images:
                         for i, img in enumerate(uploaded_images[:5]):
-                            comment = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
+                            comment = st.text_input(f"画像 {i+1} のコメント", key=f"pdf_img_comment_{i}")
                             path = f"/tmp/img_{i}.png"
                             with open(path, "wb") as f:
                                 f.write(img.getbuffer())
                             image_comment_pairs.append((path, comment))
 
-                    followup_comment = st.session_state.selected_record.get("comment", "")
-                    followup_date = datetime.now().strftime("%Y-%m-%d")
-
                     record = st.session_state.selected_record
+                    followup_comment = record.get("comment", "")
+                    followup_date = record.get("followup_at", datetime.now().strftime("%Y-%m-%d"))
+
                     data = {
                         "name": record["name"],
                         "date": record["date"],
@@ -754,7 +754,6 @@ if st.session_state.authenticated:
                         st.success("✅ PDFを生成しました！")
                         with open(output_path, "rb") as f:
                             st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
-
             else:
                 st.warning("検査記録が選択されていません。左の記録一覧から選択してください。")
 
