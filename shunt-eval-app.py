@@ -688,8 +688,17 @@ if st.session_state.authenticated:
                     self.cell(0, 10, f"{jp_to_en['所見コメント']}: {translated}", ln=True)
                     self.cell(0, 10, f"{jp_to_en['次回検査日']}: {date}", ln=True)
 
-            if "selected_record" in st.session_state:
-                st.markdown("---")
+            if "selected_record" not in st.session_state:
+                st.warning("検査記録が選択されていません。検査日時を選択してください。")
+                st.stop()
+
+            # レポート対象日付選択
+            st.subheader("📅 レポートにする検査日時を選択")
+            df = st.session_state.get("df_filtered")
+            if df is not None:
+                available_dates = df["date"].tolist()
+                selected_report_date = st.selectbox("検査日時を選択", available_dates, key="report_date_select")
+                st.session_state.selected_record = df[df["date"] == selected_report_date].iloc[-1]
 
                 if st.button("📄 レポートPDF出力", key="pdf_toggle_btn"):
                     st.session_state.show_pdf_export = not st.session_state.get("show_pdf_export", False)
