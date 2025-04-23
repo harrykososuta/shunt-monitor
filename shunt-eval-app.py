@@ -76,6 +76,23 @@ def register_user(password):
     supabase.table("users").insert({"password": password, "access_code": access_code}).execute()
     return access_code
 
+# 日本語→英語変換辞書
+jp_to_en = {
+    "検査日": "Date",
+    "氏名": "Patient",
+    "VA Type": "VA Type",
+    "評価パラメータ": "Parameters",
+    "コメント": "Comment",
+    "評価スコア": "Evaluation Score",
+    "所見コメント": "Clinical Comment",
+    "次回検査日": "Next Exam Date",
+    "評価結果": "Threshold Evaluation",
+    "透析後に評価": "Evaluate post-dialysis",
+    "次回透析日に評価": "Evaluate next dialysis",
+    "経過観察": "Follow-up",
+    "VAIVT提案": "VAIVT recommended"
+}
+
 # --- セッション初期化 ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
@@ -594,21 +611,17 @@ if st.session_state.authenticated:
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
-        # === PDF 出力 ===
-        st.subheader("📄 レポートPDF出力")
-        uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-        image_comment_pairs = []
-        if uploaded_images:
-            for i, img in enumerate(uploaded_images[:5]):
-                comment_txt = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
-                path = f"/tmp/img_{i}.png"
-                with open(path, "wb") as f:
-                    f.write(img.getbuffer())
-                image_comment_pairs.append((path, comment_txt))
-
-        if st.button("📄 PDFを生成"):
-            from fpdf import FPDF
-            import os
+            # === PDF 出力 ===
+            st.subheader("📄 レポートPDF出力")
+            uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+            image_comment_pairs = []
+            if uploaded_images:
+                for i, img in enumerate(uploaded_images[:5]):
+                    comment_txt = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
+                    path = f"/tmp/img_{i}.png"
+                    with open(path, "wb") as f:
+                        f.write(img.getbuffer())
+                    image_comment_pairs.append((path, comment_txt))
 
             class PDF(FPDF):
                 def header(self):
@@ -618,27 +631,35 @@ if st.session_state.authenticated:
 
                 def basic_info(self, name, date, va_type):
                     self.set_font("Arial", size=12)
-                    self.cell(0, 10, f"検査日: {date}", ln=True)
-                    self.cell(0, 10, f"氏名: {name}", ln=True)
-                    self.cell(0, 10, f"VA Type: {va_type}", ln=True)
+                    self.cell(0, 10, f"{jp_to_en['検査日']}: {date}", ln=True)
+                    self.cell(0, 10, f"{jp_to_en['氏名']}: {name}", ln=True)
+                    self.cell(0, 10, f"{jp_to_en['VA Type']}: {va_type}", ln=True)
                     self.ln(5)
 
                 def parameter_table(self, params):
                     self.set_font("Arial", size=12)
-                    self.cell(0, 10, "評価パラメータ", ln=True)
+                    self.cell(0, 10, jp_to_en['評価パラメータ'], ln=True)
                     self.set_fill_color(220, 220, 220)
                     for label, value in params.items():
                         self.cell(40, 10, label, border=1, fill=True)
                         self.cell(0, 10, str(value), border=1, ln=True)
                     self.ln(5)
 
-                def add_threshold_table(self, rows):
+                def add_comment_section(self, comment):
                     self.set_font("Arial", size=12)
-                    self.cell(0, 10, "評価結果", ln=True)
-                    for i, row in enumerate(rows):
+                    translated = jp_to_en.get(comment, comment)
+                    self.multi_cell(0, 10, f"{jp_to_en['コメント']}: {translated}", border=1)
+                    self.ln(5)
+
+                def add_threshold_table(self, thresholds):
+                    self.set_font("Arial", size=12)
+                    self.cell(0, 10, jp_to_en['評価結果'], ln=True)
+                    self.set_fill_color(220, 220, 220)
+                    for i, row in enumerate(thresholds):
                         for col in row:
-                            self.cell(40, 10, str(col), border=1)
+                            self.cell(40, 10, str(col), border=1, fill=(i == 0))
                         self.ln()
+                    self.ln(5)
 
                 def add_score(self, score):
                     self.set_font("Arial", "B", 14)
@@ -648,54 +669,95 @@ if st.session_state.authenticated:
                         self.set_text_color(255, 140, 0)
                     else:
                         self.set_text_color(0, 128, 0)
-                    self.cell(0, 10, f"評価スコア: {score} / 4", ln=True)
+                    self.cell(0, 10, f"{jp_to_en['評価スコア']}: {score} / 4", ln=True)
                     self.set_text_color(0, 0, 0)
+                    self.ln(5)
+
+                def add_images(self, images_with_comments):
+                    for img_path, comment in images_with_comments:
+                        if os.path.exists(img_path):
+                            self.image(img_path, w=90)
+                            self.set_font("Arial", size=10)
+                            translated = jp_to_en.get(comment, comment)
+                            self.multi_cell(0, 10, f"{jp_to_en['コメント']}: {translated}", border=1)
+                            self.ln(5)
 
                 def add_followup(self, comment, date):
                     self.set_font("Arial", size=12)
-                    self.cell(0, 10, f"所見コメント: {comment}", ln=True)
-                    self.cell(0, 10, f"次回検査日: {date}", ln=True)
+                    translated = jp_to_en.get(comment, comment)
+                    self.cell(0, 10, f"{jp_to_en['所見コメント']}: {translated}", ln=True)
+                    self.cell(0, 10, f"{jp_to_en['次回検査日']}: {date}", ln=True)
 
-                def add_images(self, image_list):
-                    self.set_font("Arial", size=12)
-                    if not image_list:
-                        self.cell(0, 10, "画像の添付はありませんでした。", ln=True)
-                        return
-                    for path, comment in image_list:
-                        if os.path.exists(path):
-                            self.image(path, w=90)
-                            self.set_font("Arial", size=10)
-                            self.multi_cell(0, 10, f"コメント: {comment}", border=1)
+            if "selected_record" in st.session_state:
+                st.markdown("---")
 
-            pdf = PDF()
-            pdf.add_page()
-            pdf.basic_info(selected_record["name"], selected_record["date"], selected_record["va_type"])
-            pdf.parameter_table({
-                "FV": selected_record["FV"], "RI": selected_record["RI"], "PI": selected_record["PI"],
-                "TAV": selected_record["TAV"], "TAMV": selected_record["TAMV"],
-                "PSV": selected_record["PSV"], "EDV": selected_record["EDV"]
-            })
+                if st.button("📄 レポートPDF出力", key="pdf_toggle_btn"):
+                    st.session_state.show_pdf_export = not st.session_state.get("show_pdf_export", False)
 
-            rows = [["Param", "Value", "Threshold", "Result"]]
-            for p in eval_params:
-                v = selected_record[p]
-                t = thresholds[p]
-                d = directions[p]
-                result = "Above" if (d == "Above" and v > t) or (d == "Below" and v < t) else "Normal"
-                rows.append([p, v, t, result])
+                if st.session_state.get("show_pdf_export", False):
+                    uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="pdf_file_uploader")
+                    image_comment_pairs = []
 
-            pdf.add_threshold_table(rows)
-            pdf.add_score(selected_record["score"])
-            pdf.add_followup(comment, followup_date.strftime('%Y-%m-%d'))
-            pdf.add_images(image_comment_pairs)
+                    if uploaded_images:
+                        for i, img in enumerate(uploaded_images[:5]):
+                            comment = st.text_input(f"画像 {i+1} のコメント", key=f"img_comment_{i}")
+                            path = f"/tmp/img_{i}.png"
+                            with open(path, "wb") as f:
+                                f.write(img.getbuffer())
+                            image_comment_pairs.append((path, comment))
 
-            try:
-                path = "shunt_report.pdf"
-                pdf.output(path, "F")
-                with open(path, "rb") as f:
-                    st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
-            except Exception as e:
-                st.error(f"PDF出力エラー: {e}")
+                    followup_comment = st.session_state.selected_record.get("comment", "")
+                    followup_date = datetime.now().strftime("%Y-%m-%d")
+
+                    record = st.session_state.selected_record
+                    data = {
+                        "name": record["name"],
+                        "date": record["date"],
+                        "va_type": record["va_type"],
+                        "params": {
+                            "FV": record["FV"],
+                            "RI": record["RI"],
+                            "PI": record["PI"],
+                            "TAV": record["TAV"],
+                            "TAMV": record["TAMV"],
+                            "PSV": record["PSV"],
+                            "EDV": record["EDV"]
+                        },
+                        "comment": followup_comment,
+                        "thresholds": [
+                            ["Parameter", "Value", "Threshold", "Direction"],
+                            ["TAV", record["TAV"], 34.5, "Above" if record["TAV"] > 34.5 else "Below"],
+                            ["RI", record["RI"], 0.68, "Above" if record["RI"] > 0.68 else "Below"],
+                            ["PI", record["PI"], 1.3, "Above" if record["PI"] > 1.3 else "Below"],
+                            ["EDV", record["EDV"], 40.4, "Above" if record["EDV"] > 40.4 else "Below"]
+                        ],
+                        "score": record["score"],
+                        "images": image_comment_pairs,
+                        "followup_comment": followup_comment,
+                        "followup_date": followup_date
+                    }
+
+                    if st.button("📄 PDF出力", key="pdf_generate_btn"):
+                        pdf = PDF()
+                        pdf.add_page()
+                        pdf.basic_info(data['name'], data['date'], data['va_type'])
+                        pdf.parameter_table(data['params'])
+                        pdf.add_comment_section(data['comment'])
+                        pdf.add_threshold_table(data['thresholds'])
+                        pdf.add_score(data['score'])
+                        pdf.add_followup(data['followup_comment'], data['followup_date'])
+                        pdf.add_images(data['images'])
+
+                        output_path = "shunt_report.pdf"
+                        pdf.output(output_path)
+
+                        st.success("✅ PDFを生成しました！")
+                        with open(output_path, "rb") as f:
+                            st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
+
+            else:
+                st.warning("検査記録が選択されていません。左の記録一覧から選択してください。")
+
 
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
