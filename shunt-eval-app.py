@@ -700,76 +700,63 @@ if st.session_state.authenticated:
                 selected_report_date = st.selectbox("検査日時を選択", available_dates, key="report_date_select")
                 st.session_state.selected_record = df[df["date"] == selected_report_date].iloc[-1]
 
-                # 所見と検査日表示
                 selected_record = st.session_state.selected_record
                 st.write("### 所見コメント")
                 st.write(selected_record.get("comment", "(記録なし)"))
                 st.write("### 次回検査日")
                 st.write(selected_record.get("followup_at", "(記録なし)"))
 
-                if st.button("📄 レポートPDF出力", key="pdf_toggle_btn"):
-                    st.session_state.show_pdf_export = not st.session_state.get("show_pdf_export", False)
+                st.subheader("📄 レポートPDF出力")
+                uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="pdf_file_uploader")
+                image_comment_pairs = []
 
-                if st.session_state.get("show_pdf_export", False):
-                    uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="pdf_file_uploader")
-                    image_comment_pairs = []
+                if uploaded_images:
+                    for i, img in enumerate(uploaded_images[:5]):
+                        comment = st.text_input(f"画像 {i+1} のコメント", key=f"pdf_img_comment_{i}")
+                        path = f"/tmp/img_{i}.png"
+                        with open(path, "wb") as f:
+                            f.write(img.getbuffer())
+                        image_comment_pairs.append((path, comment))
 
-                    if uploaded_images:
-                        for i, img in enumerate(uploaded_images[:5]):
-                            comment = st.text_input(f"画像 {i+1} のコメント", key=f"pdf_img_comment_{i}")
-                            path = f"/tmp/img_{i}.png"
-                            with open(path, "wb") as f:
-                                f.write(img.getbuffer())
-                            image_comment_pairs.append((path, comment))
+                followup_comment = selected_record.get("comment", "")
+                followup_date = selected_record.get("followup_at", datetime.now().strftime("%Y-%m-%d"))
 
-                    record = st.session_state.selected_record
-                    followup_comment = record.get("comment", "")
-                    followup_date = record.get("followup_at", datetime.now().strftime("%Y-%m-%d"))
+                data = {
+                    "name": selected_record["name"],
+                    "date": selected_record["date"],
+                    "va_type": selected_record["va_type"],
+                    "params": {k: selected_record[k] for k in ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]},
+                    "comment": followup_comment,
+                    "thresholds": [
+                        ["Parameter", "Value", "Threshold", "Direction"],
+                        ["TAV", selected_record["TAV"], 34.5, "Above" if selected_record["TAV"] > 34.5 else "Below"],
+                        ["RI", selected_record["RI"], 0.68, "Above" if selected_record["RI"] > 0.68 else "Below"],
+                        ["PI", selected_record["PI"], 1.3, "Above" if selected_record["PI"] > 1.3 else "Below"],
+                        ["EDV", selected_record["EDV"], 40.4, "Above" if selected_record["EDV"] > 40.4 else "Below"]
+                    ],
+                    "score": selected_record["score"],
+                    "images": image_comment_pairs,
+                    "followup_comment": followup_comment,
+                    "followup_date": followup_date
+                }
 
-                    data = {
-                        "name": record["name"],
-                        "date": record["date"],
-                        "va_type": record["va_type"],
-                        "params": {
-                            "FV": record["FV"],
-                            "RI": record["RI"],
-                            "PI": record["PI"],
-                            "TAV": record["TAV"],
-                            "TAMV": record["TAMV"],
-                            "PSV": record["PSV"],
-                            "EDV": record["EDV"]
-                        },
-                        "comment": followup_comment,
-                        "thresholds": [
-                            ["Parameter", "Value", "Threshold", "Direction"],
-                            ["TAV", record["TAV"], 34.5, "Above" if record["TAV"] > 34.5 else "Below"],
-                            ["RI", record["RI"], 0.68, "Above" if record["RI"] > 0.68 else "Below"],
-                            ["PI", record["PI"], 1.3, "Above" if record["PI"] > 1.3 else "Below"],
-                            ["EDV", record["EDV"], 40.4, "Above" if record["EDV"] > 40.4 else "Below"]
-                        ],
-                        "score": record["score"],
-                        "images": image_comment_pairs,
-                        "followup_comment": followup_comment,
-                        "followup_date": followup_date
-                    }
+                if st.button("📥 PDFを生成しダウンロード", key="pdf_generate_btn"):
+                    pdf = PDF()
+                    pdf.add_page()
+                    pdf.basic_info(data['name'], data['date'], data['va_type'])
+                    pdf.parameter_table(data['params'])
+                    pdf.add_comment_section(data['comment'])
+                    pdf.add_threshold_table(data['thresholds'])
+                    pdf.add_score(data['score'])
+                    pdf.add_followup(data['followup_comment'], data['followup_date'])
+                    pdf.add_images(data['images'])
 
-                    if st.button("📥 PDFを生成しダウンロード", key="pdf_generate_btn"):
-                        pdf = PDF()
-                        pdf.add_page()
-                        pdf.basic_info(data['name'], data['date'], data['va_type'])
-                        pdf.parameter_table(data['params'])
-                        pdf.add_comment_section(data['comment'])
-                        pdf.add_threshold_table(data['thresholds'])
-                        pdf.add_score(data['score'])
-                        pdf.add_followup(data['followup_comment'], data['followup_date'])
-                        pdf.add_images(data['images'])
+                    pdf_buffer = BytesIO()
+                    pdf.output(pdf_buffer)
+                    pdf_buffer.seek(0)
 
-                        output_path = "shunt_report.pdf"
-                        pdf.output(output_path)
-
-                        st.success("✅ PDFを生成しました！")
-                        with open(output_path, "rb") as f:
-                            st.download_button("📥 PDFをダウンロード", f, file_name="shunt_report.pdf")
+                    st.success("✅ PDFを生成しました！")
+                    st.download_button("📥 PDFをダウンロード", data=pdf_buffer, file_name="shunt_report.pdf")
             else:
                 st.warning("検査記録が選択されていません。左の記録一覧から選択してください。")
 
