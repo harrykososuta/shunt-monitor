@@ -700,6 +700,13 @@ if st.session_state.authenticated:
                 selected_report_date = st.selectbox("検査日時を選択", available_dates, key="report_date_select")
                 st.session_state.selected_record = df[df["date"] == selected_report_date].iloc[-1]
 
+                # 所見と検査日表示
+                selected_record = st.session_state.selected_record
+                st.write("### 所見コメント")
+                st.write(selected_record.get("comment", "(記録なし)"))
+                st.write("### 次回検査日")
+                st.write(selected_record.get("followup_at", "(記録なし)"))
+
                 if st.button("📄 レポートPDF出力", key="pdf_toggle_btn"):
                     st.session_state.show_pdf_export = not st.session_state.get("show_pdf_export", False)
 
@@ -746,7 +753,7 @@ if st.session_state.authenticated:
                         "followup_date": followup_date
                     }
 
-                    if st.button("📄 PDF出力", key="pdf_generate_btn"):
+                    if st.button("📥 PDFを生成しダウンロード", key="pdf_generate_btn"):
                         pdf = PDF()
                         pdf.add_page()
                         pdf.basic_info(data['name'], data['date'], data['va_type'])
