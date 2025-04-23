@@ -688,75 +688,73 @@ if st.session_state.authenticated:
                     self.cell(0, 10, f"{jp_to_en['所見コメント']}: {translated}", ln=True)
                     self.cell(0, 10, f"{jp_to_en['次回検査日']}: {date}", ln=True)
 
-            if "selected_record" not in st.session_state:
-                st.warning("検査記録が選択されていません。検査日時を選択してください。")
+            # 検査データがない場合のガード
+            if "df_filtered" not in st.session_state or st.session_state.df_filtered.empty:
+                st.warning("記録がまだ読み込まれていません。左側のメニューから検査対象を選択してください。")
                 st.stop()
 
-            # レポート対象日付選択
             st.subheader("📅 レポートにする検査日時を選択")
-            df = st.session_state.get("df_filtered")
-            if df is not None:
-                available_dates = df["date"].tolist()
-                selected_report_date = st.selectbox("検査日時を選択", available_dates, key="report_date_select")
-                st.session_state.selected_record = df[df["date"] == selected_report_date].iloc[-1]
+            df = st.session_state.df_filtered
+            available_dates = df["date"].tolist()
+            selected_report_date = st.selectbox("検査日時を選択", available_dates, key="report_date_select")
+            st.session_state.selected_record = df[df["date"] == selected_report_date].iloc[-1]
+            selected_record = st.session_state.selected_record
 
-                selected_record = st.session_state.selected_record
-                st.write("### 所見コメント")
-                st.write(selected_record.get("comment", "(記録なし)"))
-                st.write("### 次回検査日")
-                st.write(selected_record.get("followup_at", "(記録なし)"))
+            st.write("### 所見コメント")
+            st.write(selected_record.get("comment", "(記録なし)"))
 
-                st.subheader("📄 レポートPDF出力")
-                uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="pdf_file_uploader")
-                image_comment_pairs = []
+            st.write("### 次回検査日")
+            st.write(selected_record.get("followup_at", "(記録なし)"))
 
-                if uploaded_images:
-                    for i, img in enumerate(uploaded_images[:5]):
-                        comment = st.text_input(f"画像 {i+1} のコメント", key=f"pdf_img_comment_{i}")
-                        path = f"/tmp/img_{i}.png"
-                        with open(path, "wb") as f:
-                            f.write(img.getbuffer())
-                        image_comment_pairs.append((path, comment))
+            st.subheader("📄 レポートPDF出力")
+            uploaded_images = st.file_uploader("エコー画像をアップロード (最大5枚)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="pdf_file_uploader")
+            image_comment_pairs = []
 
-                followup_comment = selected_record.get("comment", "")
-                followup_date = selected_record.get("followup_at", datetime.now().strftime("%Y-%m-%d"))
+            if uploaded_images:
+                for i, img in enumerate(uploaded_images[:5]):
+                    comment = st.text_input(f"画像 {i+1} のコメント", key=f"pdf_img_comment_{i}")
+                    path = f"/tmp/img_{i}.png"
+                    with open(path, "wb") as f:
+                        f.write(img.getbuffer())
+                    image_comment_pairs.append((path, comment))
 
-                data = {
-                    "name": selected_record["name"],
-                    "date": selected_record["date"],
-                    "va_type": selected_record["va_type"],
-                    "params": {k: selected_record[k] for k in ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]},
-                    "comment": followup_comment,
-                    "thresholds": [
-                        ["Parameter", "Value", "Threshold", "Direction"],
-                        ["TAV", selected_record["TAV"], 34.5, "Above" if selected_record["TAV"] > 34.5 else "Below"],
-                        ["RI", selected_record["RI"], 0.68, "Above" if selected_record["RI"] > 0.68 else "Below"],
-                        ["PI", selected_record["PI"], 1.3, "Above" if selected_record["PI"] > 1.3 else "Below"],
-                        ["EDV", selected_record["EDV"], 40.4, "Above" if selected_record["EDV"] > 40.4 else "Below"]
-                    ],
-                    "score": selected_record["score"],
-                    "images": image_comment_pairs,
-                    "followup_comment": followup_comment,
-                    "followup_date": followup_date
-                }
+            followup_comment = selected_record.get("comment", "")
+            followup_date = selected_record.get("followup_at", datetime.now().strftime("%Y-%m-%d"))
 
-                if st.button("📥 PDFを生成しダウンロード", key="pdf_generate_btn"):
-                    pdf = PDF()
-                    pdf.add_page()
-                    pdf.basic_info(data['name'], data['date'], data['va_type'])
-                    pdf.parameter_table(data['params'])
-                    pdf.add_comment_section(data['comment'])
-                    pdf.add_threshold_table(data['thresholds'])
-                    pdf.add_score(data['score'])
-                    pdf.add_followup(data['followup_comment'], data['followup_date'])
-                    pdf.add_images(data['images'])
+            data = {
+                "name": selected_record["name"],
+                "date": selected_record["date"],
+                "va_type": selected_record["va_type"],
+                "params": {k: selected_record[k] for k in ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]},
+                "comment": followup_comment,
+                "thresholds": [
+                    ["Parameter", "Value", "Threshold", "Direction"],
+                    ["TAV", selected_record["TAV"], 34.5, "Above" if selected_record["TAV"] > 34.5 else "Below"],
+                    ["RI", selected_record["RI"], 0.68, "Above" if selected_record["RI"] > 0.68 else "Below"],
+                    ["PI", selected_record["PI"], 1.3, "Above" if selected_record["PI"] > 1.3 else "Below"],
+                    ["EDV", selected_record["EDV"], 40.4, "Above" if selected_record["EDV"] > 40.4 else "Below"]
+                ],
+                "score": selected_record["score"],
+                "images": image_comment_pairs,
+                "followup_comment": followup_comment,
+                "followup_date": followup_date
+            }
 
-                    pdf_buffer = BytesIO()
-                    pdf.output(pdf_buffer)
-                    pdf_buffer.seek(0)
+            if st.button("📥 PDFを生成しダウンロード", key="pdf_generate_btn"):
+                pdf = PDF()
+                pdf.add_page()
+                pdf.basic_info(data['name'], data['date'], data['va_type'])
+                pdf.parameter_table(data['params'])
+                pdf.add_comment_section(data['comment'])
+                pdf.add_threshold_table(data['thresholds'])
+                pdf.add_score(data['score'])
+                pdf.add_followup(data['followup_comment'], data['followup_date'])
+                pdf.add_images(data['images'])
 
-                    st.success("✅ PDFを生成しました！")
-                    st.download_button("📥 PDFをダウンロード", data=pdf_buffer, file_name="shunt_report.pdf")
+                pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                st.success("✅ PDFを生成しました！")
+                st.download_button("📥 PDFをダウンロード", data=pdf_bytes, file_name="shunt_report.pdf")
+
             else:
                 st.warning("検査記録が選択されていません。左の記録一覧から選択してください。")
 
