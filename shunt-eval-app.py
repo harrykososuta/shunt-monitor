@@ -799,11 +799,7 @@ if st.session_state.authenticated and page == "患者データ一覧":
     if df.empty:
         st.info("患者データが存在しません。")
     else:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        try:
-            df["date"] = df["date"].dt.tz_localize("UTC")
-        except TypeError:
-            df["date"] = df["date"].dt.tz_convert("UTC")
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
         df["date_display"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -833,20 +829,19 @@ if st.session_state.authenticated and page == "患者データ一覧":
 
                 if st.session_state.get("show_filtered_data", False):
                     start_date, end_date = st.session_state.selected_range
-                    start_dt = pd.to_datetime(start_date)
-                    end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1)
-                    filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
+                    start_dt = pd.Timestamp(start_date).tz_localize("Asia/Tokyo")
+                    end_dt = pd.Timestamp(end_date).tz_localize("Asia/Tokyo") + pd.Timedelta(days=1)
 
-                     patient_data["date"] = pd.to_datetime(patient_data["date"], errors="coerce")
+                    filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
 
                     st.write(f"### {selected_name} の記録一覧")
                     if filtered_data.empty:
                         st.warning("選択された日付には検査記録がありません。")
                     else:
-                        display_columns = ["id", "name", "date_display", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+                        display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
                         display_data = filtered_data.copy()
-                        display_data = display_data.rename(columns={"date_display": "date"})[display_columns]
-                        st.dataframe(display_data, height=200)
+                        display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+                        st.dataframe(display_data[display_columns], height=200)
 
         st.markdown("---")
         st.subheader("📊 特記事項カテゴリでの比較")
