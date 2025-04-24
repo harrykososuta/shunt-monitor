@@ -837,6 +837,8 @@ if st.session_state.authenticated and page == "患者データ一覧":
                     end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1)
                     filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
 
+                     patient_data["date"] = pd.to_datetime(patient_data["date"], errors="coerce")
+
                     st.write(f"### {selected_name} の記録一覧")
                     if filtered_data.empty:
                         st.warning("選択された日付には検査記録がありません。")
