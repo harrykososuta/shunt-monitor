@@ -12,6 +12,8 @@ import sqlite3
 import seaborn as sns
 import pytz
 from scipy.stats import mannwhitneyu
+from fpdf import FPDF
+from io import BytesIO
 
 from supabase import create_client, Client
 # Supabase 接続設定
@@ -73,6 +75,23 @@ def register_user(password):
     access_code = generate_access_code(len(count_res.data) + 1)
     supabase.table("users").insert({"password": password, "access_code": access_code}).execute()
     return access_code
+
+# 日本語→英語変換辞書
+jp_to_en = {
+    "検査日": "Date",
+    "氏名": "Patient",
+    "VA Type": "VA Type",
+    "評価パラメータ": "Parameters",
+    "コメント": "Comment",
+    "評価スコア": "Evaluation Score",
+    "所見コメント": "Clinical Comment",
+    "次回検査日": "Next Exam Date",
+    "評価結果": "Threshold Evaluation",
+    "透析後に評価": "Evaluate post-dialysis",
+    "次回透析日に評価": "Evaluate next dialysis",
+    "経過観察": "Follow-up",
+    "VAIVT提案": "VAIVT recommended"
+}
 
 # --- セッション初期化 ---
 if 'authenticated' not in st.session_state:
@@ -333,7 +352,12 @@ if st.session_state.authenticated and page == "評価フォーム":
     
 
     try:
-        df_names = supabase.table("shunt_records").select("name").neq("name", "").execute()
+        access_code = st.session_state.generated_access_code
+        df_names = supabase.table("shunt_records") \
+            .select("name") \
+            .neq("name", "") \
+            .eq("access_code", access_code) \
+            .execute()
         name_list = list({entry['name'] for entry in df_names.data})
     except Exception as e:
         st.error(f"名前一覧の取得エラー: {e}")
@@ -479,13 +503,13 @@ if st.session_state.authenticated and page == "評価フォーム":
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
 
-
 if st.session_state.authenticated:
     if page == "記録一覧とグラフ":
-        st.title("記録の一覧と経時変化グラフ")
+        st.title("📊 記録の一覧と経時変化グラフ")
 
         try:
-            response = supabase.table("shunt_records").select("*").execute()
+            access_code = st.session_state.generated_access_code
+            response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
             df = pd.DataFrame(response.data)
         except Exception as e:
             st.error(f"データの取得に失敗しました: {e}")
@@ -493,153 +517,107 @@ if st.session_state.authenticated:
 
         if df.empty:
             st.info("記録がまだありません。")
-        else:
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            st.stop()
+
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        if df["date"].dt.tz is None:
+            df["date"] = df["date"].dt.tz_localize("UTC")
+        df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        names = df["name"].dropna().unique().tolist()
+        selected_name = st.selectbox("氏名を選択", names)
+
+        df_filtered = df[df["name"] == selected_name]
+        selected_datetime = st.selectbox("検査日時を選択", df_filtered["date"].tolist())
+        selected_record = df_filtered[df_filtered["date"] == selected_datetime].iloc[-1]
+
+        st.session_state.selected_record = selected_record
+
+        st.write(f"### {selected_name} の記録一覧")
+        st.dataframe(df_filtered.sort_values("date"))
+
+        # === 評価チャート + 経時変化グラフ ===
+        st.subheader("🧠 評価チャート")
+        period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
+
+        left, right = st.columns([1, 2])
+        thresholds = {"TAV": 34.5, "RI": 0.68, "PI": 1.3, "EDV": 40.4}
+        directions = {"TAV": "Above", "RI": "Above", "PI": "Above", "EDV": "Below"}
+        eval_params = ["TAV", "RI", "PI", "EDV"]
+
+        with left:
+            for param in eval_params:
+                val = selected_record[param]
+                base = thresholds[param]
+                direction = directions[param]
+                fig, ax = plt.subplots(figsize=(4, 1.5))
+                if direction == "Below":
+                    ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
+                    ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
+                    ax.axvspan(base, base * 2, color='blue', alpha=0.1)
+                else:
+                    ax.axvspan(0, base, color='blue', alpha=0.1)
+                    ax.axvspan(base, base * 1.1, color='yellow', alpha=0.2)
+                    ax.axvspan(base * 1.1, base * 2, color='red', alpha=0.2)
+                ax.scatter(val, 0, color='red', s=100)
+                ax.set_xlim(0, base * 2)
+                ax.set_title(f"{param} Evaluation")
+                st.pyplot(fig)
+
+            st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
+
+        with right:
+            st.markdown("#### 📈 経時変化グラフ")
+            time_filtered = df_filtered.copy()
+            now = pd.Timestamp.now(tz="Asia/Tokyo")
+            if period != "全期間":
+                months = {"半年": 6, "1年": 12, "3年": 36}[period]
+                time_filtered["date_obj"] = pd.to_datetime(time_filtered["date"])
+                start_date = now - pd.DateOffset(months=months)
+                time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
+
+            metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+            col1, col2 = st.columns(2)
+            for i, metric in enumerate(metrics):
+                with (col1 if i % 2 == 0 else col2):
+                    fig2, ax2 = plt.subplots(figsize=(5, 2.5))
+                    ax2.plot(time_filtered["date"], time_filtered[metric], marker="o")
+                    ax2.set_title(f"{metric} Trend")
+                    ax2.set_xlabel("Date")
+                    ax2.set_ylabel(metric)
+                    ax2.grid(True)
+                    ax2.set_xticks(time_filtered["date"])
+                    ax2.set_xticklabels(time_filtered["date"], rotation=45, ha='right')
+                    st.pyplot(fig2)
+
+        # === 所見コメント ===
+        st.subheader("📝 所見コメント入力")
+        comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
+        followup_date = st.date_input("次回検査日")
+
+        if st.button("この所見を保存"):
             try:
-                df["date"] = df["date"].dt.tz_localize("UTC")
-            except TypeError:
-                df["date"] = df["date"].dt.tz_convert("UTC")
+                now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
+                supabase.table("followups").insert({
+                    "name": selected_name,
+                    "comment": comment,
+                    "followup_at": followup_date.strftime('%Y-%m-%d'),
+                    "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S'),
+                    "access_code": access_code
+                }).execute()
+                st.success("保存しました。")
+            except Exception as e:
+                st.error(f"保存エラー: {e}")
 
-            df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
-            df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-            filtered_names = df["name"].dropna().unique().tolist()
-            if "" in filtered_names:
-                filtered_names.remove("")
-
-            selected_name = st.selectbox("表示する氏名を選択", filtered_names)
-            df_filtered = df[df["name"] == selected_name]
-
-            if df_filtered.empty:
-                st.info(f"{selected_name} の記録がまだありません。")
-            else:
-                columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
-                if all(col in df_filtered.columns for col in columns):
-                    df_filtered = df_filtered[columns].sort_values(by="date", ascending=True)
-
-                if st.button("記録一覧を表示 / 非表示", key="toggle_record_list"):
-                    st.session_state.show_record_list = not st.session_state.get("show_record_list", False)
-
-                if st.session_state.get("show_record_list", True):
-                    st.write(f"### {selected_name} の記録一覧")
-                    st.dataframe(df_filtered)
-
-                st.markdown("検査日時を選択")
-                selectable_datetimes = df_filtered["date"].tolist()
-                selected_datetime_str = st.selectbox("検査日時を選択", selectable_datetimes)
-                selected_records = df_filtered[df_filtered["date"] == selected_datetime_str]
-
-                if not selected_records.empty:
-                    selected_record = selected_records.iloc[-1]
-
-                    if st.button("レポート出力を表示 / 非表示", key="toggle_report"):
-                        st.session_state.show_report = not st.session_state.get("show_report", False)
-
-                    if st.session_state.get("show_report", False):
-                        latest = selected_record
-                        st.subheader("📄 レポート")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.markdown(f"**Patient Name**: {latest['name']}")
-                            st.markdown(f"**Generated At**: {datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S')}")
-
-                            report_df = pd.DataFrame({
-                                "Parameter": ["TAV", "RI", "PI", "EDV"],
-                                "Value": [latest["TAV"], latest["RI"], latest["PI"], latest["EDV"]],
-                                "Threshold": [34.5, 0.68, 1.3, 40.4],
-                                "Direction": ["Below", "Above", "Above", "Below"]
-                            })
-                            st.dataframe(report_df, use_container_width=True)
-
-                            for _, row in report_df.iterrows():
-                                param, val, base, direction = row
-                                if param == "RI":
-                                    xlim = (0, 1.0); xticks = np.arange(0, 1.1, 0.1)
-                                elif param == "PI":
-                                    xlim = (0, 5.0); xticks = np.arange(0, 5.5, 0.5)
-                                else:
-                                    xlim = (0, max(1.5 * val, base * 1.5)); xticks = None
-
-                                fig, ax = plt.subplots(figsize=(5, 1.8))
-                                if direction == "Below":
-                                    ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
-                                    ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
-                                    ax.axvspan(base, xlim[1], color='blue', alpha=0.1)
-                                else:
-                                    ax.axvspan(0, base, color='blue', alpha=0.1)
-                                    ax.axvspan(base, base * 1.1, color='yellow', alpha=0.2)
-                                    ax.axvspan(base * 1.1, xlim[1], color='red', alpha=0.2)
-
-                                ax.scatter(val, 0, color='red', s=100, zorder=5)
-                                ax.set_xlim(xlim)
-                                if xticks is not None:
-                                    ax.set_xticks(xticks)
-                                ax.set_title(f"{param} Evaluation")
-                                ax.set_xlabel("Value")
-                                st.pyplot(fig)
-
-                            st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
-
-                            comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"], key="comment_select")
-
-                            followup_date = None
-                            if comment in ["次回透析日に評価", "経過観察"]:
-                                followup_date = st.date_input("次回検査日を選択", key="followup_date")
-
-                            if st.button("この所見を保存"):
-                                now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
-                                try:
-                                    supabase.table("followups").insert({
-                                        "name": selected_name,
-                                        "comment": comment,
-                                        "followup_at": followup_date.strftime('%Y-%m-%d') if followup_date else None,
-                                        "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S'),
-                                        "access_code": st.session_state.generated_access_code
-                                    }).execute()
-                                    st.success("所見と次回検査日を保存しました。")
-                                except Exception as e:
-                                    st.error(f"保存に失敗しました: {e}")
-
-                        with col2:
-                            st.markdown("### Trend Graphs")
-                            metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-                            col1, col2 = st.columns(2)
-                            for i, metric in enumerate(metrics):
-                                with (col1 if i % 2 == 0 else col2):
-                                    fig2, ax2 = plt.subplots(figsize=(5, 2.5))
-                                    ax2.plot(df_filtered["date"], df_filtered[metric], marker="o")
-                                    ax2.set_title(f"{metric} Trend")
-                                    ax2.set_xlabel("Date")
-                                    ax2.set_ylabel(metric)
-                                    ax2.grid(True)
-                                    ax2.set_xticks(df_filtered["date"])
-                                    ax2.set_xticklabels(df_filtered["date"], rotation=45, ha='right')
-                                    st.pyplot(fig2)
-
-                if st.button("グラフ出力を表示 / 非表示", key="toggle_full_graph"):
-                    st.session_state.show_full_graph = not st.session_state.get("show_full_graph", False)
-
-                if st.session_state.get("show_full_graph", False):
-                    metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-                    col1, col2 = st.columns(2)
-                    for i, metric in enumerate(metrics):
-                        with (col1 if i % 2 == 0 else col2):
-                            fig, ax = plt.subplots(figsize=(5, 2.5))
-                            ax.plot(df_filtered["date"], df_filtered[metric], marker="o")
-                            ax.set_title(f"{metric} Trend")
-                            ax.set_xlabel("Date")
-                            ax.set_ylabel(metric)
-                            ax.grid(True)
-                            ax.set_xticks(df_filtered["date"])
-                            ax.set_xticklabels(df_filtered["date"], rotation=45, ha='right')
-                            st.pyplot(fig)
 
 
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
 
     try:
-        response = supabase.table("shunt_records").select("*").execute()
+        access_code = st.session_state.generated_access_code
+        response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
         df = pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
@@ -754,7 +732,11 @@ if st.session_state.authenticated and page == "患者管理":
 
             if st.session_state.confirm_edit:
                 if st.button("⚠ 本当に氏名を更新しますか？（再クリックで実行）"):
-                    supabase.table("shunt_records").update({"name": new_name}).eq("name", edit_target_name).execute()
+                    supabase.table("shunt_records") \
+                        .update({"name": new_name}) \
+                        .eq("name", edit_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
                     st.success("氏名を更新しました。ページを再読み込みしてください。")
                     st.session_state.confirm_edit = False
 
@@ -775,7 +757,11 @@ if st.session_state.authenticated and page == "患者管理":
 
             if st.session_state.confirm_delete:
                 if st.button("⚠ 本当に削除しますか？（再クリックで実行）"):
-                    supabase.table("shunt_records").delete().eq("name", delete_target_name).execute()
+                    supabase.table("shunt_records") \
+                        .delete() \
+                        .eq("name", delete_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
                     st.success("記録を削除しました。ページを再読み込みしてください。")
                     st.session_state.confirm_delete = False
 
@@ -803,7 +789,8 @@ if st.session_state.authenticated and page == "患者データ一覧":
     st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
 
     try:
-        response = supabase.table("shunt_records").select("*").execute()
+        access_code = st.session_state.generated_access_code
+        response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
         df = pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"データ取得に失敗しました: {e}")
@@ -812,11 +799,7 @@ if st.session_state.authenticated and page == "患者データ一覧":
     if df.empty:
         st.info("患者データが存在しません。")
     else:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        try:
-            df["date"] = df["date"].dt.tz_localize("UTC")
-        except TypeError:
-            df["date"] = df["date"].dt.tz_convert("UTC")
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
         df["date_display"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -846,18 +829,19 @@ if st.session_state.authenticated and page == "患者データ一覧":
 
                 if st.session_state.get("show_filtered_data", False):
                     start_date, end_date = st.session_state.selected_range
-                    start_dt = pd.to_datetime(start_date)
-                    end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+                    start_dt = pd.Timestamp(start_date).tz_localize("Asia/Tokyo")
+                    end_dt = pd.Timestamp(end_date).tz_localize("Asia/Tokyo") + pd.Timedelta(days=1)
+
                     filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
 
                     st.write(f"### {selected_name} の記録一覧")
                     if filtered_data.empty:
                         st.warning("選択された日付には検査記録がありません。")
                     else:
-                        display_columns = ["id", "name", "date_display", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+                        display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
                         display_data = filtered_data.copy()
-                        display_data = display_data.rename(columns={"date_display": "date"})[display_columns]
-                        st.dataframe(display_data, height=200)
+                        display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+                        st.dataframe(display_data[display_columns], height=200)
 
         st.markdown("---")
         st.subheader("📊 特記事項カテゴリでの比較")
