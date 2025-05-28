@@ -293,7 +293,7 @@ if st.session_state.authenticated:
         task_date = st.date_input("タスク日を選択")
         col1, col2 = st.columns(2)
         with col1:
-            start_time = st.time_input("開始時刻", value=datetime.time(9, 0))
+            start_time = st.time_input("開始時刻", value=time(9, 0))
         with col2:
             end_time = st.time_input("終了時刻", value=datetime.time(9, 30))
         task_text = st.text_input("タスク内容を入力")
@@ -301,7 +301,7 @@ if st.session_state.authenticated:
         if st.button("追加"):
             try:
                 start_datetime = datetime.combine(task_date, start_time)
-                end_datetime = datetime.datetime.combine(task_date, end_time)
+                end_datetime = datetime.combine(task_date, end_time)
                 supabase.table("tasks").insert({
                     "start": start_datetime.isoformat(),
                     "end": end_datetime.isoformat(),
@@ -432,6 +432,7 @@ if st.session_state.authenticated:
             calendar(events=events, options=calendar_options)
         except Exception as e:
             st.warning("カレンダー表示に失敗しました。")
+
 
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
