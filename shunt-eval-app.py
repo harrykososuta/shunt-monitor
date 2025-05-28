@@ -1,6 +1,7 @@
 import streamlit as st
 st.set_page_config(page_title="シャント機能評価", layout="wide")
 
+from streamlit_calendar import calendar
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -287,8 +288,8 @@ if st.session_state.authenticated:
         else:
             st.info("本日の検査予定はありません。")
 
-        # --- カレンダーに組み込まれたメモ登録 ---
-        st.subheader("🗓 カレンダーでタスクを管理")
+        # --- タスク追加フォーム ---
+        st.subheader("🗓 タスク追加")
         task_date = st.date_input("タスク日を選択")
         task_text = st.text_input("タスク内容を入力")
 
@@ -300,10 +301,11 @@ if st.session_state.authenticated:
                     "access_code": st.session_state.generated_access_code
                 }).execute()
                 st.success("タスクを追加しました")
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"タスクの追加に失敗しました: {e}")
 
-        # --- 登録済みタスク一覧表示 ---
+        # --- 登録済みタスク一覧＆削除 ---
         st.subheader("🗕 登録済みタスク一覧")
         try:
             task_response = supabase.table("tasks") \
@@ -315,10 +317,84 @@ if st.session_state.authenticated:
             if task_df.empty:
                 st.info("現在タスクは登録されていません。")
             else:
-                for _, row in task_df.iterrows():
+                for i, row in task_df.iterrows():
                     st.write(f"🗓 {row['date']} - 📌 {row['content']}")
+                    if st.button(f"削除_{i}"):
+                        try:
+                            supabase.table("tasks") \
+                                .delete() \
+                                .match({
+                                    "date": row["date"],
+                                    "content": row["content"],
+                                    "access_code": st.session_state.generated_access_code
+                                }) \
+                                .execute()
+                            st.success("タスクを削除しました。")
+                            st.experimental_rerun()
+                        except:
+                            st.error("削除に失敗しました。")
         except Exception:
-            st.info("本日にタスクはありません。")
+            st.warning("タスク一覧の取得に失敗しました")
+
+        # --- カレンダー表示（Qiita形式・全ビュー切替可能） ---
+        st.subheader("📅 タスクカレンダー")
+
+        try:
+            task_response = supabase.table("tasks") \
+                .select("date, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .execute()
+            task_df = pd.DataFrame(task_response.data)
+            task_df["date"] = pd.to_datetime(task_df["date"])
+
+            events = [
+                {
+                    "title": row["content"],
+                    "start": row["date"].strftime("%Y-%m-%dT09:00:00"),
+                    "end": row["date"].strftime("%Y-%m-%dT10:00:00"),
+                    "allDay": False,
+                    "resourceId": "default"
+                }
+                for _, row in task_df.iterrows()
+            ]
+
+            calendar_options = {
+                "initialView": "dayGridMonth",
+                "headerToolbar": {
+                    "start": "today prev,next",
+                    "center": "title",
+                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"  # 全ビュー切替
+                },
+                "locale": "ja",
+                "selectable": True,
+                "editable": False,
+                "navLinks": True,
+                "resources": [
+                    {"id": "default", "title": "スケジュール"}
+                ],
+                "views": {
+                    "timeGridDay": {
+                        "type": "resourceTimeGrid",
+                        "buttonText": "日ごと"
+                    },
+                    "timeGridWeek": {
+                        "type": "resourceTimeGrid",
+                        "buttonText": "週ごと"
+                    },
+                    "dayGridMonth": {
+                        "type": "dayGridMonth",
+                        "buttonText": "月ごと"
+                    },
+                    "listWeek": {
+                        "type": "listWeek",
+                        "buttonText": "リスト"
+                    }
+                }
+            }
+
+            calendar(events=events, options=calendar_options)
+        except Exception as e:
+            st.warning("カレンダー表示に失敗しました。")
 
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
