@@ -291,14 +291,17 @@ if st.session_state.authenticated:
         # --- タスク追加フォーム ---
         st.subheader("🗓 タスク追加")
         task_date = st.date_input("タスク日を選択")
-        task_time = st.time_input("タスク時刻を選択", value=datetime.time(9, 0))
+        start_time = st.time_input("開始時刻を選択", value=datetime.time(9, 0))
+        end_time = st.time_input("終了時刻を選択", value=datetime.time(9, 30))
         task_text = st.text_input("タスク内容を入力")
 
         if st.button("追加"):
             try:
-                full_datetime = datetime.combine(task_date, task_time)
+                start_datetime = datetime.combine(task_date, start_time)
+                end_datetime = datetime.combine(task_date, end_time)
                 supabase.table("tasks").insert({
-                    "date": full_datetime.isoformat(),
+                    "start": start_datetime.isoformat(),
+                    "end": end_datetime.isoformat(),
                     "content": task_text,
                     "access_code": st.session_state.generated_access_code
                 }).execute()
@@ -311,28 +314,35 @@ if st.session_state.authenticated:
         st.subheader("🗕 登録済みタスク一覧（本日のみ）")
         try:
             task_response = supabase.table("tasks") \
-                .select("date, content") \
+                .select("start, end, content") \
                 .eq("access_code", st.session_state.generated_access_code) \
-                .order("date", desc=False) \
+                .order("start", desc=False) \
                 .execute()
             task_df = pd.DataFrame(task_response.data)
-            task_df["date"] = pd.to_datetime(task_df["date"])
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
             today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
-            today_df = task_df[task_df["date"].dt.date == today.date()]
+            today_df = task_df[task_df["start"].dt.date == today.date()]
 
             if today_df.empty:
                 st.info("本日登録されたタスクはありません。")
             else:
                 for i, row in today_df.iterrows():
                     new_content = st.text_input(f"📝 内容修正_{i}", value=row["content"])
-                    new_time = st.time_input(f"⏰ 時刻修正_{i}", value=row["date"].time())
+                    new_start = st.time_input(f"⏰ 開始_{i}", value=row["start"].time())
+                    new_end = st.time_input(f"⏰ 終了_{i}", value=row["end"].time())
                     if st.button(f"修正_{i}"):
                         try:
-                            new_datetime = datetime.combine(today, new_time)
+                            new_start_datetime = datetime.combine(today, new_start)
+                            new_end_datetime = datetime.combine(today, new_end)
                             supabase.table("tasks") \
-                                .update({"date": new_datetime.isoformat(), "content": new_content}) \
+                                .update({
+                                    "start": new_start_datetime.isoformat(),
+                                    "end": new_end_datetime.isoformat(),
+                                    "content": new_content
+                                }) \
                                 .match({
-                                    "date": row["date"].isoformat(),
+                                    "start": row["start"].isoformat(),
                                     "content": row["content"],
                                     "access_code": st.session_state.generated_access_code
                                 }) \
@@ -347,7 +357,7 @@ if st.session_state.authenticated:
                             supabase.table("tasks") \
                                 .delete() \
                                 .match({
-                                    "date": row["date"].isoformat(),
+                                    "start": row["start"].isoformat(),
                                     "content": row["content"],
                                     "access_code": st.session_state.generated_access_code
                                 }) \
@@ -364,17 +374,18 @@ if st.session_state.authenticated:
 
         try:
             task_response = supabase.table("tasks") \
-                .select("date, content") \
+                .select("start, end, content") \
                 .eq("access_code", st.session_state.generated_access_code) \
                 .execute()
             task_df = pd.DataFrame(task_response.data)
-            task_df["date"] = pd.to_datetime(task_df["date"])
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
 
             events = [
                 {
                     "title": row["content"],
-                    "start": row["date"].strftime("%Y-%m-%dT%H:%M:%S"),
-                    "end": (row["date"] + pd.Timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
                     "allDay": False,
                     "resourceId": "default"
                 }
