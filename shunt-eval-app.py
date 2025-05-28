@@ -305,7 +305,7 @@ if st.session_state.authenticated:
                 start_datetime = datetime.combine(task_date, start_time)
                 end_datetime = datetime.combine(task_date, end_time)
                 supabase.table("tasks").insert({
-                    "date": task_date,
+                    "date": task_date.isoformat(),
                     "start": start_datetime.isoformat(),
                     "end": end_datetime.isoformat(),
                     "content": task_text,
