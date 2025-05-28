@@ -16,6 +16,8 @@ from scipy.stats import mannwhitneyu
 from fpdf import FPDF
 from io import BytesIO
 
+from datetime import datetime, time
+
 from supabase import create_client, Client
 # Supabase 接続設定
 url = "https://wlozruvtxaoagnumolkr.supabase.co"
