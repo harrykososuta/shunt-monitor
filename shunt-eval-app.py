@@ -301,7 +301,7 @@ if st.session_state.authenticated:
         if st.button("追加"):
             try:
                 start_datetime = datetime.combine(task_date, start_time)
-                end_datetime = datetime.combine(task_date, end_time)
+                end_datetime = datetime.datetime.combine(task_date, end_time)
                 supabase.table("tasks").insert({
                     "start": start_datetime.isoformat(),
                     "end": end_datetime.isoformat(),
@@ -336,8 +336,8 @@ if st.session_state.authenticated:
                     new_end = st.time_input(f"⏰ 終了_{i}", value=row["end"].time())
                     if st.button(f"修正_{i}"):
                         try:
-                            new_start_datetime = datetime.combine(today, new_start)
-                            new_end_datetime = datetime.combine(today, new_end)
+                            new_start_datetime = datetime.datetime.combine(today, new_start)
+                            new_end_datetime = datetime.datetime.combine(today, new_end)
                             supabase.table("tasks") \
                                 .update({
                                     "start": new_start_datetime.isoformat(),
