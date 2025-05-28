@@ -325,6 +325,7 @@ if st.session_state.authenticated:
                 .order("start", desc=False) \
                 .execute()
             task_df = pd.DataFrame(task_response.data)
+            task_df.dropna(subset=["start", "end", "content"], inplace=True)
             task_df["start"] = pd.to_datetime(task_df["start"])
             task_df["end"] = pd.to_datetime(task_df["end"])
             today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
@@ -354,7 +355,7 @@ if st.session_state.authenticated:
                                 }) \
                                 .execute()
                             st.success("タスクを修正しました。")
-                            st.experimental_rerun()
+                            st.rerun()
                         except:
                             st.error("修正に失敗しました。")
 
@@ -369,7 +370,7 @@ if st.session_state.authenticated:
                                 }) \
                                 .execute()
                             st.success("タスクを削除しました。")
-                            st.experimental_rerun()
+                            st.rerun()
                         except:
                             st.error("削除に失敗しました。")
         except Exception:
@@ -384,6 +385,7 @@ if st.session_state.authenticated:
                 .eq("access_code", st.session_state.generated_access_code) \
                 .execute()
             task_df = pd.DataFrame(task_response.data)
+            task_df.dropna(subset=["start", "end", "content"], inplace=True)
             task_df["start"] = pd.to_datetime(task_df["start"])
             task_df["end"] = pd.to_datetime(task_df["end"])
 
@@ -434,68 +436,8 @@ if st.session_state.authenticated:
 
             calendar(events=events, options=calendar_options)
         except Exception as e:
-            st.warning("カレンダー表示に失敗しました。")
+            st.warning(f"カレンダー表示に失敗しました: {e}")
 
-        # --- カレンダー表示（Qiita形式・全ビュー切替可能） ---
-        st.subheader("📅 タスクカレンダー")
-
-        try:
-            task_response = supabase.table("tasks") \
-                .select("start, end, content") \
-                .eq("access_code", st.session_state.generated_access_code) \
-                .execute()
-            task_df = pd.DataFrame(task_response.data)
-            task_df["start"] = pd.to_datetime(task_df["start"])
-            task_df["end"] = pd.to_datetime(task_df["end"])
-
-            events = [
-                {
-                    "title": row["content"],
-                    "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
-                    "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
-                    "allDay": False,
-                    "resourceId": "default"
-                }
-                for _, row in task_df.iterrows()
-            ]
-
-            calendar_options = {
-                "initialView": "dayGridMonth",
-                "headerToolbar": {
-                    "start": "today prev,next",
-                    "center": "title",
-                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
-                },
-                "locale": "ja",
-                "selectable": True,
-                "editable": False,
-                "navLinks": True,
-                "resources": [
-                    {"id": "default", "title": "スケジュール"}
-                ],
-                "views": {
-                    "timeGridDay": {
-                        "type": "resourceTimeGrid",
-                        "buttonText": "日ごと"
-                    },
-                    "timeGridWeek": {
-                        "type": "resourceTimeGrid",
-                        "buttonText": "週ごと"
-                    },
-                    "dayGridMonth": {
-                        "type": "dayGridMonth",
-                        "buttonText": "月ごと"
-                    },
-                    "listWeek": {
-                        "type": "listWeek",
-                        "buttonText": "リスト"
-                    }
-                }
-            }
-
-            calendar(events=events, options=calendar_options)
-        except Exception as e:
-            st.warning("カレンダー表示に失敗しました。")
 
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
