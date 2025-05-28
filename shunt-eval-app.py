@@ -291,8 +291,11 @@ if st.session_state.authenticated:
         # --- タスク追加フォーム ---
         st.subheader("🗓 タスク追加")
         task_date = st.date_input("タスク日を選択")
-        start_time = st.time_input("開始時刻を選択", value=datetime.time(9, 0))
-        end_time = st.time_input("終了時刻を選択", value=datetime.time(9, 30))
+        col1, col2 = st.columns(2)
+        with col1:
+            start_time = st.time_input("開始時刻", value=datetime.time(9, 0))
+        with col2:
+            end_time = st.time_input("終了時刻", value=datetime.time(9, 30))
         task_text = st.text_input("タスク内容を入力")
 
         if st.button("追加"):
