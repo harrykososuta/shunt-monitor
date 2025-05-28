@@ -312,7 +312,7 @@ if st.session_state.authenticated:
                     "access_code": st.session_state.generated_access_code
                 }).execute()
                 st.success("タスクを追加しました")
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"タスクの追加に失敗しました: {e}")
 
