@@ -263,7 +263,7 @@ elif page == "評価フォーム":
         matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
     except Exception as e:
         matches = pd.DataFrame()
-
+        
 # --- ToDoリストのページ ---
 if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
@@ -305,7 +305,7 @@ if st.session_state.authenticated:
                 start_datetime = datetime.combine(task_date, start_time)
                 end_datetime = datetime.combine(task_date, end_time)
                 supabase.table("tasks").insert({
-                    "date": task_date.isoformat(),
+                    "date": task_date.isoformat(),  # JSON対応
                     "start": start_datetime.isoformat(),
                     "end": end_datetime.isoformat(),
                     "content": task_text,
@@ -376,9 +376,8 @@ if st.session_state.authenticated:
         except Exception:
             st.warning("タスク一覧の取得に失敗しました")
 
-        # --- カレンダー表示（Qiita形式・全ビュー切替可能） ---
+        # --- カレンダー表示（Qiita形式） ---
         st.subheader("📅 タスクカレンダー")
-
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
@@ -411,34 +410,19 @@ if st.session_state.authenticated:
                 "selectable": True,
                 "editable": False,
                 "navLinks": True,
-                "resources": [
-                    {"id": "default", "title": "スケジュール"}
-                ],
+                "resources": [{"id": "default", "title": "スケジュール"}],
                 "views": {
-                    "timeGridDay": {
-                        "type": "resourceTimeGrid",
-                        "buttonText": "日ごと"
-                    },
-                    "timeGridWeek": {
-                        "type": "resourceTimeGrid",
-                        "buttonText": "週ごと"
-                    },
-                    "dayGridMonth": {
-                        "type": "dayGridMonth",
-                        "buttonText": "月ごと"
-                    },
-                    "listWeek": {
-                        "type": "listWeek",
-                        "buttonText": "リスト"
-                    }
+                    "timeGridDay": {"type": "resourceTimeGrid", "buttonText": "日ごと"},
+                    "timeGridWeek": {"type": "resourceTimeGrid", "buttonText": "週ごと"},
+                    "dayGridMonth": {"type": "dayGridMonth", "buttonText": "月ごと"},
+                    "listWeek": {"type": "listWeek", "buttonText": "リスト"}
                 }
             }
 
             calendar(events=events, options=calendar_options)
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
-
-
+            
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
     st.title("シャント機能評価シミュレーションツール")
