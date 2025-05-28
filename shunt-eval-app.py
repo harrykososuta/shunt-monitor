@@ -295,9 +295,9 @@ if st.session_state.authenticated:
         task_date = st.date_input("タスク日を選択")
         col1, col2 = st.columns(2)
         with col1:
-            start_time = st.time_input("開始時刻", value=datetime.time(9, 0))
+            start_time = st.time_input("開始時刻", value=time(9, 0))
         with col2:
-            end_time = st.time_input("終了時刻", value=datetime.time(9, 30))
+            end_time = st.time_input("終了時刻", value=time(9, 30))
         task_text = st.text_input("タスク内容を入力")
 
         if st.button("追加"):
@@ -435,6 +435,66 @@ if st.session_state.authenticated:
         except Exception as e:
             st.warning("カレンダー表示に失敗しました。")
 
+        # --- カレンダー表示（Qiita形式・全ビュー切替可能） ---
+        st.subheader("📅 タスクカレンダー")
+
+        try:
+            task_response = supabase.table("tasks") \
+                .select("start, end, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .execute()
+            task_df = pd.DataFrame(task_response.data)
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
+
+            events = [
+                {
+                    "title": row["content"],
+                    "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "allDay": False,
+                    "resourceId": "default"
+                }
+                for _, row in task_df.iterrows()
+            ]
+
+            calendar_options = {
+                "initialView": "dayGridMonth",
+                "headerToolbar": {
+                    "start": "today prev,next",
+                    "center": "title",
+                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+                },
+                "locale": "ja",
+                "selectable": True,
+                "editable": False,
+                "navLinks": True,
+                "resources": [
+                    {"id": "default", "title": "スケジュール"}
+                ],
+                "views": {
+                    "timeGridDay": {
+                        "type": "resourceTimeGrid",
+                        "buttonText": "日ごと"
+                    },
+                    "timeGridWeek": {
+                        "type": "resourceTimeGrid",
+                        "buttonText": "週ごと"
+                    },
+                    "dayGridMonth": {
+                        "type": "dayGridMonth",
+                        "buttonText": "月ごと"
+                    },
+                    "listWeek": {
+                        "type": "listWeek",
+                        "buttonText": "リスト"
+                    }
+                }
+            }
+
+            calendar(events=events, options=calendar_options)
+        except Exception as e:
+            st.warning("カレンダー表示に失敗しました。")
 
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
