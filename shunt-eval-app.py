@@ -336,8 +336,8 @@ if st.session_state.authenticated:
                     new_end = st.time_input(f"⏰ 終了_{i}", value=row["end"].time())
                     if st.button(f"修正_{i}"):
                         try:
-                            new_start_datetime = datetime.datetime.combine(today, new_start)
-                            new_end_datetime = datetime.datetime.combine(today, new_end)
+                            new_start_datetime = datetime.combine(today, new_start)
+                            new_end_datetime = datetime.combine(today, new_end)
                             supabase.table("tasks") \
                                 .update({
                                     "start": new_start_datetime.isoformat(),
@@ -432,7 +432,6 @@ if st.session_state.authenticated:
             calendar(events=events, options=calendar_options)
         except Exception as e:
             st.warning("カレンダー表示に失敗しました。")
-
 
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
