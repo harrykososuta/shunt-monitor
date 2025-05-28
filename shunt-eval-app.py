@@ -291,12 +291,14 @@ if st.session_state.authenticated:
         # --- タスク追加フォーム ---
         st.subheader("🗓 タスク追加")
         task_date = st.date_input("タスク日を選択")
+        task_time = st.time_input("タスク時刻を選択", value=time(9, 0))
         task_text = st.text_input("タスク内容を入力")
 
         if st.button("追加"):
             try:
+                full_datetime = datetime.combine(task_date, task_time)
                 supabase.table("tasks").insert({
-                    "date": task_date.strftime('%Y-%m-%d'),
+                    "date": full_datetime.isoformat(),
                     "content": task_text,
                     "access_code": st.session_state.generated_access_code
                 }).execute()
@@ -305,8 +307,8 @@ if st.session_state.authenticated:
             except Exception as e:
                 st.error(f"タスクの追加に失敗しました: {e}")
 
-        # --- 登録済みタスク一覧＆削除 ---
-        st.subheader("🗕 登録済みタスク一覧")
+        # --- 登録済みタスク一覧＆削除・編集（当日のみ） ---
+        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
         try:
             task_response = supabase.table("tasks") \
                 .select("date, content") \
@@ -314,17 +316,38 @@ if st.session_state.authenticated:
                 .order("date", desc=False) \
                 .execute()
             task_df = pd.DataFrame(task_response.data)
-            if task_df.empty:
-                st.info("現在タスクは登録されていません。")
+            task_df["date"] = pd.to_datetime(task_df["date"])
+            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+            today_df = task_df[task_df["date"].dt.date == today.date()]
+
+            if today_df.empty:
+                st.info("本日登録されたタスクはありません。")
             else:
-                for i, row in task_df.iterrows():
-                    st.write(f"🗓 {row['date']} - 📌 {row['content']}")
+                for i, row in today_df.iterrows():
+                    new_content = st.text_input(f"📝 内容修正_{i}", value=row["content"])
+                    new_time = st.time_input(f"⏰ 時刻修正_{i}", value=row["date"].time())
+                    if st.button(f"修正_{i}"):
+                        try:
+                            new_datetime = datetime.combine(today, new_time)
+                            supabase.table("tasks") \
+                                .update({"date": new_datetime.isoformat(), "content": new_content}) \
+                                .match({
+                                    "date": row["date"].isoformat(),
+                                    "content": row["content"],
+                                    "access_code": st.session_state.generated_access_code
+                                }) \
+                                .execute()
+                            st.success("タスクを修正しました。")
+                            st.experimental_rerun()
+                        except:
+                            st.error("修正に失敗しました。")
+
                     if st.button(f"削除_{i}"):
                         try:
                             supabase.table("tasks") \
                                 .delete() \
                                 .match({
-                                    "date": row["date"],
+                                    "date": row["date"].isoformat(),
                                     "content": row["content"],
                                     "access_code": st.session_state.generated_access_code
                                 }) \
@@ -350,8 +373,8 @@ if st.session_state.authenticated:
             events = [
                 {
                     "title": row["content"],
-                    "start": row["date"].strftime("%Y-%m-%dT09:00:00"),
-                    "end": row["date"].strftime("%Y-%m-%dT10:00:00"),
+                    "start": row["date"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": (row["date"] + pd.Timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S"),
                     "allDay": False,
                     "resourceId": "default"
                 }
@@ -363,7 +386,7 @@ if st.session_state.authenticated:
                 "headerToolbar": {
                     "start": "today prev,next",
                     "center": "title",
-                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"  # 全ビュー切替
+                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
                 },
                 "locale": "ja",
                 "selectable": True,
