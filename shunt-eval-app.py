@@ -437,7 +437,7 @@ if st.session_state.authenticated:
                                 st.rerun()
                             except:
                                 st.error("修正に失敗しました。")
-                    with button_col2:
+                    with btn_col2:
                         if st.button("削除", key=f"delete_{index}"):
                             try:
                                 supabase.table("tasks") \
@@ -449,9 +449,9 @@ if st.session_state.authenticated:
                                     }) \
                                     .execute()
                                 st.success("タスクを削除しました。")
-                                st.rerun()
-                            except:
-                                st.error("削除に失敗しました。")
+                                st.rerun()  # 成功時は即リロード
+                            except Exception as e:
+                                st.error(f"削除に失敗しました: {e}")
         except Exception:
             st.warning("タスク一覧の取得に失敗しました")
             
