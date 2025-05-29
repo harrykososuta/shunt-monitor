@@ -267,116 +267,12 @@ elif page == "評価フォーム":
 # --- ToDoリストのページ ---
 if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
+        from datetime import datetime, time
+        import streamlit_modal as modal
+
         st.header("📋 ToDoリスト")
 
-        # --- 本日の followups 検査予定 ---
-        try:
-            followups_response = supabase.table("followups") \
-                .select("name, comment, followup_at") \
-                .eq("access_code", st.session_state.generated_access_code) \
-                .execute()
-            followups_df = pd.DataFrame(followups_response.data)
-            followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
-            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
-            matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
-        except Exception:
-            matches = pd.DataFrame()
-
-        # --- 本日の検査対象者表示 ---
-        st.subheader("🔔 本日の検査予定")
-        if not matches.empty:
-            for _, row in matches.iterrows():
-                st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
-        else:
-            st.info("本日の検査予定はありません。")
-
-        # --- タスク追加フォーム ---
-        st.subheader("🗓 タスク追加")
-        task_date = st.date_input("タスク日を選択")
-        col1, col2 = st.columns(2)
-        with col1:
-            start_time = st.time_input("開始時刻", value=time(9, 0))
-        with col2:
-            end_time = st.time_input("終了時刻", value=time(9, 30))
-        task_text = st.text_input("タスク内容を入力")
-
-        if st.button("追加"):
-            try:
-                start_datetime = datetime.combine(task_date, start_time)
-                end_datetime = datetime.combine(task_date, end_time)
-                supabase.table("tasks").insert({
-                    "date": task_date.isoformat(),  # JSON対応
-                    "start": start_datetime.isoformat(),
-                    "end": end_datetime.isoformat(),
-                    "content": task_text,
-                    "access_code": st.session_state.generated_access_code
-                }).execute()
-                st.success("タスクを追加しました")
-                st.rerun()
-            except Exception as e:
-                st.error(f"タスクの追加に失敗しました: {e}")
-
-        # --- 登録済みタスク一覧＆削除・編集（当日のみ） ---
-        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
-        try:
-            task_response = supabase.table("tasks") \
-                .select("start, end, content") \
-                .eq("access_code", st.session_state.generated_access_code) \
-                .order("start", desc=False) \
-                .execute()
-            task_df = pd.DataFrame(task_response.data)
-            task_df.dropna(subset=["start", "end", "content"], inplace=True)
-            task_df["start"] = pd.to_datetime(task_df["start"])
-            task_df["end"] = pd.to_datetime(task_df["end"])
-            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
-            today_df = task_df[task_df["start"].dt.date == today.date()]
-
-            if today_df.empty:
-                st.info("本日登録されたタスクはありません。")
-            else:
-                for i, row in today_df.iterrows():
-                    new_content = st.text_input(f"📝 内容修正_{i}", value=row["content"])
-                    new_start = st.time_input(f"⏰ 開始_{i}", value=row["start"].time())
-                    new_end = st.time_input(f"⏰ 終了_{i}", value=row["end"].time())
-                    if st.button(f"修正_{i}"):
-                        try:
-                            new_start_datetime = datetime.combine(today, new_start)
-                            new_end_datetime = datetime.combine(today, new_end)
-                            supabase.table("tasks") \
-                                .update({
-                                    "start": new_start_datetime.isoformat(),
-                                    "end": new_end_datetime.isoformat(),
-                                    "content": new_content
-                                }) \
-                                .match({
-                                    "start": row["start"].isoformat(),
-                                    "content": row["content"],
-                                    "access_code": st.session_state.generated_access_code
-                                }) \
-                                .execute()
-                            st.success("タスクを修正しました。")
-                            st.rerun()
-                        except:
-                            st.error("修正に失敗しました。")
-
-                    if st.button(f"削除_{i}"):
-                        try:
-                            supabase.table("tasks") \
-                                .delete() \
-                                .match({
-                                    "start": row["start"].isoformat(),
-                                    "content": row["content"],
-                                    "access_code": st.session_state.generated_access_code
-                                }) \
-                                .execute()
-                            st.success("タスクを削除しました。")
-                            st.rerun()
-                        except:
-                            st.error("削除に失敗しました。")
-        except Exception:
-            st.warning("タスク一覧の取得に失敗しました")
-
-        # --- カレンダー表示（Qiita形式） ---
+        # --- カレンダー表示（Qiita形式・全ビュー切替可能）を上部へ移動 ---
         st.subheader("📅 タスクカレンダー")
         try:
             task_response = supabase.table("tasks") \
@@ -422,6 +318,122 @@ if st.session_state.authenticated:
             calendar(events=events, options=calendar_options)
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
+
+        # --- 本日の followups 検査予定 ---
+        try:
+            followups_response = supabase.table("followups") \
+                .select("name, comment, followup_at") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .execute()
+            followups_df = pd.DataFrame(followups_response.data)
+            followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
+            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+            matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
+        except Exception:
+            matches = pd.DataFrame()
+
+        st.subheader("🔔 本日の検査予定")
+        if not matches.empty:
+            for _, row in matches.iterrows():
+                st.write(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
+        else:
+            st.info("本日の検査予定はありません。")
+
+        # --- タスク追加フォーム ---
+        st.subheader("🗓 タスク追加")
+        task_date = st.date_input("タスク日を選択")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_time = st.time_input("開始時刻", value=time(9, 0))
+        with col2:
+            end_time = st.time_input("終了時刻", value=time(9, 30))
+        task_text = st.text_input("タスク内容を入力")
+
+        if st.button("追加"):
+            try:
+                start_datetime = datetime.combine(task_date, start_time)
+                end_datetime = datetime.combine(task_date, end_time)
+                supabase.table("tasks").insert({
+                    "date": task_date.isoformat(),
+                    "start": start_datetime.isoformat(),
+                    "end": end_datetime.isoformat(),
+                    "content": task_text,
+                    "access_code": st.session_state.generated_access_code
+                }).execute()
+                st.success("タスクを追加しました")
+                st.rerun()
+            except Exception as e:
+                st.error(f"タスクの追加に失敗しました: {e}")
+
+        # --- 編集ポップアップ方式 ---
+        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
+        try:
+            task_response = supabase.table("tasks") \
+                .select("start, end, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .order("start", desc=False) \
+                .execute()
+            task_df = pd.DataFrame(task_response.data)
+            task_df.dropna(subset=["start", "end", "content"], inplace=True)
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
+            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+            today_df = task_df[task_df["start"].dt.date == today.date()]
+
+            if today_df.empty:
+                st.info("本日登録されたタスクはありません。")
+            else:
+                task_options = [f"{row['start'].strftime('%H:%M')} - {row['content']}" for _, row in today_df.iterrows()]
+                selected = st.selectbox("編集するタスクを選択", options=[""] + task_options)
+                if selected:
+                    index = task_options.index(selected)
+                    row = today_df.iloc[index]
+                    new_content = st.text_input("📝 内容修正", value=row["content"])
+                    time_col1, time_col2 = st.columns(2)
+                    with time_col1:
+                        new_start = st.time_input("⏰ 開始", value=row["start"].time(), key=f"start_{index}")
+                    with time_col2:
+                        new_end = st.time_input("⏰ 終了", value=row["end"].time(), key=f"end_{index}")
+                    button_col1, button_col2 = st.columns(2)
+                    with button_col1:
+                        if st.button("修正", key=f"edit_{index}"):
+                            try:
+                                new_start_datetime = datetime.combine(today, new_start)
+                                new_end_datetime = datetime.combine(today, new_end)
+                                supabase.table("tasks") \
+                                    .update({
+                                        "start": new_start_datetime.isoformat(),
+                                        "end": new_end_datetime.isoformat(),
+                                        "content": new_content
+                                    }) \
+                                    .match({
+                                        "start": row["start"].isoformat(),
+                                        "content": row["content"],
+                                        "access_code": st.session_state.generated_access_code
+                                    }) \
+                                    .execute()
+                                st.success("タスクを修正しました。")
+                                st.rerun()
+                            except:
+                                st.error("修正に失敗しました。")
+                    with button_col2:
+                        if st.button("削除", key=f"delete_{index}"):
+                            try:
+                                supabase.table("tasks") \
+                                    .delete() \
+                                    .match({
+                                        "start": row["start"].isoformat(),
+                                        "content": row["content"],
+                                        "access_code": st.session_state.generated_access_code
+                                    }) \
+                                    .execute()
+                                st.success("タスクを削除しました。")
+                                st.rerun()
+                            except:
+                                st.error("削除に失敗しました。")
+        except Exception:
+            st.warning("タスク一覧の取得に失敗しました")
+
             
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
