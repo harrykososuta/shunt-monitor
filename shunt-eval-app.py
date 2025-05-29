@@ -267,7 +267,6 @@ elif page == "評価フォーム":
 if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
-        import streamlit_modal as modal
 
         st.header("📋 ToDoリスト")
 
@@ -334,6 +333,7 @@ if st.session_state.authenticated:
                 }
             }
 
+            from streamlit_calendar import calendar
             calendar(events=events, options=calendar_options)
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
