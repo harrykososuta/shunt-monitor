@@ -289,23 +289,27 @@ if st.session_state.authenticated:
             if "checked_items" not in st.session_state:
                 st.session_state.checked_items = {}
 
+            unchecked_names = []
             for i, row in matches.iterrows():
                 key = f"check_{i}"
                 if key not in st.session_state.checked_items:
                     st.session_state.checked_items[key] = False
 
-                checked = st.checkbox("", key=key)
-                st.session_state.checked_items[key] = checked
+                col1, col2 = st.columns([1, 20])
+                with col1:
+                    checked = st.checkbox("", key=key)
+                    st.session_state.checked_items[key] = checked
+                with col2:
+                    with st.container(border=True):
+                        st.markdown(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
 
-                with st.container(border=True):
-                    st.markdown(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
+                if not st.session_state.checked_items[key]:
+                    unchecked_names.append(row['name'])
 
             if all(st.session_state.checked_items.values()):
                 st.success("本日の検査予定はありません。")
-            else:
-                unchecked = [row['name'] for i, row in matches.iterrows() if not st.session_state.checked_items[f"check_{i}"]]
-                if unchecked:
-                    st.warning(f"{', '.join(unchecked)} さんの検査が未実施です")
+            elif unchecked_names:
+                st.warning(f"{', '.join(unchecked_names)} さんの検査が未実施です")
         else:
             st.info("本日の検査予定はありません。")
 
