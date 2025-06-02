@@ -268,6 +268,8 @@ if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
 
+        st.markdown("<h1 style='display: flex; align-items: center;'>📋&nbsp;ToDoリスト</h1>", unsafe_allow_html=True)
+
         # --- 本日の followups 検査予定 ---
         try:
             followups_response = supabase.table("followups") \
@@ -378,7 +380,7 @@ if st.session_state.authenticated:
                 st.error(f"タスクの追加に失敗しました: {e}")
 
         # --- タスク編集 ---
-        st.subheader(" 登録済みタスク一覧（本日のみ）")
+        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
