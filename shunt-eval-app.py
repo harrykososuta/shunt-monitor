@@ -313,8 +313,8 @@ if st.session_state.authenticated:
         else:
             st.info("本日の検査予定はありません。")
 
-        # --- カレンダー表示（Qiita形式・全ビュー切替可能）を上部へ移動 ---
-        st.subheader("📅 タスクカレンダー")
+        # --- カレンダー表示 ---
+        st.subheader("🗕 タスクカレンダー")
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
@@ -336,7 +336,8 @@ if st.session_state.authenticated:
                 for _, row in task_df.iterrows()
             ]
 
-            calendar_options = {
+            from streamlit_calendar import calendar
+            calendar(events=events, options={
                 "initialView": "dayGridMonth",
                 "headerToolbar": {
                     "start": "today prev,next",
@@ -347,21 +348,12 @@ if st.session_state.authenticated:
                 "selectable": True,
                 "editable": False,
                 "navLinks": True,
-                "resources": [{"id": "default", "title": "スケジュール"}],
-                "views": {
-                    "timeGridDay": {"type": "resourceTimeGrid", "buttonText": "日ごと"},
-                    "timeGridWeek": {"type": "resourceTimeGrid", "buttonText": "週ごと"},
-                    "dayGridMonth": {"type": "dayGridMonth", "buttonText": "月ごと"},
-                    "listWeek": {"type": "listWeek", "buttonText": "リスト"}
-                }
-            }
-
-            from streamlit_calendar import calendar
-            calendar(events=events, options=calendar_options)
+                "resources": [{"id": "default", "title": "スケジュール"}]
+            })
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
 
-        # --- タスク追加フォーム ---
+        # --- タスク追加 ---
         st.subheader("🗓 タスク追加")
         task_date = st.date_input("タスク日を選択", value=date.today())
         col1, col2 = st.columns(2)
@@ -386,8 +378,9 @@ if st.session_state.authenticated:
                 st.rerun()
             except Exception as e:
                 st.error(f"タスクの追加に失敗しました: {e}")
-         # --- 編集ポップアップ方式 ---
-        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
+
+        # --- タスク編集 ---
+        st.subheader("�헕 登録済みタスク一覧（本日のみ）")
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
@@ -406,10 +399,11 @@ if st.session_state.authenticated:
             else:
                 task_options = [f"{row['start'].strftime('%H:%M')} - {row['content']}" for _, row in today_df.iterrows()]
                 selected = st.selectbox("編集するタスクを選択", options=[""] + task_options)
+
                 if selected:
                     index = task_options.index(selected)
                     row = today_df.iloc[index]
-                    new_content = st.text_input("📝 内容修正", value=row["content"])
+                    new_content = st.text_input("🗒 内容修正", value=row["content"])
                     time_col1, time_col2 = st.columns(2)
                     with time_col1:
                         new_start = st.time_input("⏰ 開始", value=row["start"].time(), key=f"start_{index}")
@@ -433,11 +427,12 @@ if st.session_state.authenticated:
                                         "access_code": st.session_state.generated_access_code
                                     }) \
                                     .execute()
-                                st.success("タスクを修正しました。")
+                                st.session_state.task_edit_success = True
                                 st.rerun()
                             except:
-                                st.error("修正に失敗しました。")
-                    with btn_col2:
+                                st.session_state.task_edit_error = True
+                                st.rerun()
+                    with button_col2:
                         if st.button("削除", key=f"delete_{index}"):
                             try:
                                 supabase.table("tasks") \
@@ -448,12 +443,27 @@ if st.session_state.authenticated:
                                         "access_code": st.session_state.generated_access_code
                                     }) \
                                     .execute()
-                                st.success("タスクを削除しました。")
-                                st.rerun()  # 成功時は即リロード
-                            except Exception as e:
-                                st.error(f"削除に失敗しました: {e}")
+                                st.session_state.task_delete_success = True
+                                st.rerun()
+                            except:
+                                st.session_state.task_delete_error = True
+                                st.rerun()
         except Exception:
             st.warning("タスク一覧の取得に失敗しました")
+
+        # --- メッセージ表示 ---
+        if st.session_state.get("task_edit_success"):
+            st.success("タスクを修正しました。")
+            st.session_state.task_edit_success = False
+        if st.session_state.get("task_edit_error"):
+            st.error("修正に失敗しました。")
+            st.session_state.task_edit_error = False
+        if st.session_state.get("task_delete_success"):
+            st.success("タスクを削除しました。")
+            st.session_state.task_delete_success = False
+        if st.session_state.get("task_delete_error"):
+            st.error("削除に失敗しました。")
+            st.session_state.task_delete_error = False
             
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
