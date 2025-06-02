@@ -268,8 +268,6 @@ if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
 
-        st.header("📋 ToDoリスト")
-
         # --- 本日の followups 検査予定 ---
         try:
             followups_response = supabase.table("followups") \
