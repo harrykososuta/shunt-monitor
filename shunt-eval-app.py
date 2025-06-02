@@ -514,7 +514,8 @@ if st.session_state.authenticated and page == "シミュレーションツール
 
 
 if st.session_state.authenticated and page == "評価フォーム":
-    
+
+    from datetime import datetime, date  # 修正済み
 
     try:
         access_code = st.session_state.generated_access_code
@@ -528,7 +529,7 @@ if st.session_state.authenticated and page == "評価フォーム":
         st.error(f"名前一覧の取得エラー: {e}")
         name_list = []
 
-    date_selected = st.date_input("記録日を選択", value=datetime.date.today())
+    date_selected = st.date_input("記録日を選択", value=date.today())
 
     name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
     if name_option == "新規入力":
@@ -636,7 +637,7 @@ if st.session_state.authenticated and page == "評価フォーム":
 
     if st.button("記録を保存"):
         if name and name.strip():
-            now = datetime.datetime.combine(date_selected, datetime.datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.combine(date_selected, datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
             comment_joined = "; ".join(comments)
             access_code = st.session_state.generated_access_code
             st.write("🔑 現在のアクセスコード:", access_code)
@@ -667,6 +668,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.error(f"保存中にエラーが発生しました: {e}")
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
+
 
 if st.session_state.authenticated:
     if page == "記録一覧とグラフ":
