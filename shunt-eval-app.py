@@ -719,8 +719,7 @@ if st.session_state.authenticated:
 
             # --- 最新記録の選択とチャート ---
         if not df_filtered.empty:
-            selected_datetime = st.selectbox("記録日時を選択", df_filtered["date_str"].tolist())
-            selected_record = df_filtered[df_filtered["date_str"] == selected_datetime].iloc[-1]
+            selected_record = df_filtered.sort_values("date", ascending=False).iloc[0]
             st.session_state.selected_record = selected_record
 
             # === 評価チャート + 経時変化グラフ ===
