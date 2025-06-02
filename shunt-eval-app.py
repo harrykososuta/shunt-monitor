@@ -207,6 +207,13 @@ if st.session_state.authenticated:
         st.info("全データをリストで表示")
         # Boxplotやデータ一覧処理をここに
 
+def show_todo_page():
+    st.title("📝 ToDoリスト")
+    ...
+
+def show_evaluation_page():
+    st.title("機能評価で管理する")
+    ...
 
 if page == "ToDoリスト":
     show_todo_page()
