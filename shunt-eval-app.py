@@ -268,7 +268,8 @@ if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
 
-        st.markdown("<h1 style='display: flex; align-items: center;'>📋&nbsp;ToDoリスト</h1>", unsafe_allow_html=True)
+        # Safe title rendering without fallback ellipsis
+        st.markdown("<h1>📋 ToDoリスト</h1>", unsafe_allow_html=True)
 
         # --- 本日の followups 検査予定 ---
         try:
