@@ -676,7 +676,7 @@ if st.session_state.authenticated:
 
         try:
             access_code = st.session_state.generated_access_code
-            response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
+            response = supabase.table("shunt_records").select("*", count="exact").eq("access_code", access_code).execute()
             df = pd.DataFrame(response.data)
         except Exception as e:
             st.error(f"データの取得に失敗しました: {e}")
@@ -715,7 +715,8 @@ if st.session_state.authenticated:
 
         if st.session_state.show_record_list:
             st.write(f"### {selected_name} の記録一覧")
-            st.dataframe(df_filtered.sort_values("date", ascending=False))
+            df_display = df_filtered.drop(columns=["created_at"], errors="ignore")
+            st.dataframe(df_display.sort_values("date", ascending=False))
 
         # 🔧 記録修正モード
         st.subheader("✏️ 記録を修正する")
@@ -835,6 +836,7 @@ if st.session_state.authenticated:
                 st.success("保存しました。")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
 
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
