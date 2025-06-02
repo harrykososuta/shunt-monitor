@@ -180,7 +180,7 @@ if st.session_state.authenticated:
     page = st.session_state.page
 
     if page == "ToDoリスト":
-        st.title("📝 ToDoリスト")
+        st.title("📝 ToDoリスト・タスク管理")
         st.info("ToDoリスト機能を実装する場所")
         # ToDoリストの処理（中身をここに移動）
 
