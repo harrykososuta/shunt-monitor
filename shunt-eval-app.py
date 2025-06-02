@@ -269,7 +269,24 @@ if st.session_state.authenticated:
         from datetime import datetime, time, date
 
         # Safe title rendering without fallback ellipsis
-        st.markdown("<h1>📋 ToDoリスト</h1>", unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 0.5rem;
+        }
+        .title-row h1 {
+            margin: 0;
+            font-size: 2.2rem;
+        }
+        </style>
+        <div class="title-row">
+            <span style="font-size: 2.5rem;">📋</span>
+            <h1>ToDoリスト</h1>
+        </div>
+        """, unsafe_allow_html=True)
 
         # --- 本日の followups 検査予定 ---
         try:
