@@ -380,7 +380,7 @@ if st.session_state.authenticated:
                 st.error(f"タスクの追加に失敗しました: {e}")
 
         # --- タスク編集 ---
-        st.subheader("�헕 登録済みタスク一覧（本日のみ）")
+        st.subheader(" 登録済みタスク一覧（本日のみ）")
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
