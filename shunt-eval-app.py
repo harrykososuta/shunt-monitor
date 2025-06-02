@@ -265,7 +265,6 @@ elif page == "評価フォーム":
 
 # --- ToDoリストのページ ---
 if st.session_state.authenticated:
-    if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
 
         # Safe title rendering without fallback ellipsis
