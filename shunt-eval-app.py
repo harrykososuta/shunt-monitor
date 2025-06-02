@@ -268,13 +268,7 @@ if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
 
-        # Safe title rendering without fallback ellipsis
-        st.markdown("""
-        <div style='display: flex; align-items: center;'>
-            <span style='font-size: 2em;'>📋</span>
-            <h1 style='margin: 0 0 0 10px;'>ToDoリスト</h1>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<h1 style='display: flex; align-items: center;'>📋&nbsp;ToDoリスト</h1>", unsafe_allow_html=True)
 
         # --- 本日の followups 検査予定 ---
         try:
@@ -358,6 +352,119 @@ if st.session_state.authenticated:
             })
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
+
+        # --- タスク追加 ---
+        st.subheader("🗓 タスク追加")
+        task_date = st.date_input("タスク日を選択", value=date.today())
+        col1, col2 = st.columns(2)
+        with col1:
+            start_time = st.time_input("開始時刻", value=time(9, 0))
+        with col2:
+            end_time = st.time_input("終了時刻", value=time(9, 30))
+        task_text = st.text_input("タスク内容を入力")
+
+        if st.button("追加"):
+            try:
+                start_datetime = datetime.combine(task_date, start_time)
+                end_datetime = datetime.combine(task_date, end_time)
+                supabase.table("tasks").insert({
+                    "date": task_date.isoformat(),
+                    "start": start_datetime.isoformat(),
+                    "end": end_datetime.isoformat(),
+                    "content": task_text,
+                    "access_code": st.session_state.generated_access_code
+                }).execute()
+                st.success("タスクを追加しました")
+                st.rerun()
+            except Exception as e:
+                st.error(f"タスクの追加に失敗しました: {e}")
+
+        # --- タスク編集 ---
+        st.subheader("🗕 登録済みタスク一覧（本日のみ）")
+        try:
+            task_response = supabase.table("tasks") \
+                .select("start, end, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .order("start", desc=False) \
+                .execute()
+            task_df = pd.DataFrame(task_response.data)
+            task_df.dropna(subset=["start", "end", "content"], inplace=True)
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
+            today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+            today_df = task_df[task_df["start"].dt.date == today.date()]
+
+            if today_df.empty:
+                st.info("本日登録されたタスクはありません。")
+            else:
+                task_options = [f"{row['start'].strftime('%H:%M')} - {row['content']}" for _, row in today_df.iterrows()]
+                selected = st.selectbox("編集するタスクを選択", options=[""] + task_options)
+
+                if selected:
+                    index = task_options.index(selected)
+                    row = today_df.iloc[index]
+                    new_content = st.text_input("🗒 内容修正", value=row["content"])
+                    time_col1, time_col2 = st.columns(2)
+                    with time_col1:
+                        new_start = st.time_input("⏰ 開始", value=row["start"].time(), key=f"start_{index}")
+                    with time_col2:
+                        new_end = st.time_input("⏰ 終了", value=row["end"].time(), key=f"end_{index}")
+                    button_col1, button_col2 = st.columns(2)
+                    with button_col1:
+                        if st.button("修正", key=f"edit_{index}"):
+                            try:
+                                new_start_datetime = datetime.combine(today, new_start)
+                                new_end_datetime = datetime.combine(today, new_end)
+                                supabase.table("tasks") \
+                                    .update({
+                                        "start": new_start_datetime.isoformat(),
+                                        "end": new_end_datetime.isoformat(),
+                                        "content": new_content
+                                    }) \
+                                    .match({
+                                        "start": row["start"].isoformat(),
+                                        "content": row["content"],
+                                        "access_code": st.session_state.generated_access_code
+                                    }) \
+                                    .execute()
+                                st.session_state.task_edit_success = True
+                                st.rerun()
+                            except:
+                                st.session_state.task_edit_error = True
+                                st.rerun()
+                    with button_col2:
+                        if st.button("削除", key=f"delete_{index}"):
+                            try:
+                                supabase.table("tasks") \
+                                    .delete() \
+                                    .match({
+                                        "start": row["start"].isoformat(),
+                                        "content": row["content"],
+                                        "access_code": st.session_state.generated_access_code
+                                    }) \
+                                    .execute()
+                                st.session_state.task_delete_success = True
+                                st.rerun()
+                            except:
+                                st.session_state.task_delete_error = True
+                                st.rerun()
+        except Exception:
+            st.warning("タスク一覧の取得に失敗しました")
+
+        # --- メッセージ表示 ---
+        if st.session_state.get("task_edit_success"):
+            st.success("タスクを修正しました。")
+            st.session_state.task_edit_success = False
+        if st.session_state.get("task_edit_error"):
+            st.error("修正に失敗しました。")
+            st.session_state.task_edit_error = False
+        if st.session_state.get("task_delete_success"):
+            st.success("タスクを削除しました。")
+            st.session_state.task_delete_success = False
+        if st.session_state.get("task_delete_error"):
+            st.error("削除に失敗しました。")
+            st.session_state.task_delete_error = False
+
 
             
 # --- シミュレーションツール ページ ---
