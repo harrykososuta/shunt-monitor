@@ -686,98 +686,113 @@ if st.session_state.authenticated:
             st.info("記録がまだありません。")
             st.stop()
 
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        if df["date"].dt.tz is None:
-            df["date"] = df["date"].dt.tz_localize("UTC")
-        df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
-        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True).dt.tz_convert("Asia/Tokyo")
+        df["date_str"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         names = df["name"].dropna().unique().tolist()
         selected_name = st.selectbox("氏名を選択", names)
 
-        df_filtered = df[df["name"] == selected_name]
-        selected_datetime = st.selectbox("検査日時を選択", df_filtered["date"].tolist())
-        selected_record = df_filtered[df_filtered["date"] == selected_datetime].iloc[-1]
+        # --- 検査期間の選択 ---
+        st.markdown("### 検査期間を選択")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("開始日", value=df["date"].min().date())
+        with col2:
+            end_date = st.date_input("終了日", value=df["date"].max().date())
 
-        st.session_state.selected_record = selected_record
+        df_filtered = df[
+            (df["name"] == selected_name) &
+            (df["date"].dt.date >= start_date) &
+            (df["date"].dt.date <= end_date)
+        ].sort_values("date")
 
-        st.write(f"### {selected_name} の記録一覧")
-        st.dataframe(df_filtered.sort_values("date"))
+        # --- 記録一覧の表示 / 非表示 ---
+        if "show_records" not in st.session_state:
+            st.session_state.show_records = True
 
-        # === 評価チャート + 経時変化グラフ ===
-        st.subheader("🧠 評価チャート")
-        period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
+        if st.button("記録一覧を表示 / 非表示"):
+            st.session_state.show_records = not st.session_state.show_records
 
-        left, right = st.columns([1, 2])
-        thresholds = {"TAV": 34.5, "RI": 0.68, "PI": 1.3, "EDV": 40.4}
-        directions = {"TAV": "Above", "RI": "Above", "PI": "Above", "EDV": "Below"}
-        eval_params = ["TAV", "RI", "PI", "EDV"]
+        if st.session_state.show_records:
+            st.write(f"### {selected_name} の記録一覧")
+            st.dataframe(df_filtered[["id", "date_str", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "comment"]])
 
-        with left:
-            for param in eval_params:
-                val = selected_record[param]
-                base = thresholds[param]
-                direction = directions[param]
-                fig, ax = plt.subplots(figsize=(4, 1.5))
-                if direction == "Below":
-                    ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
-                    ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
-                    ax.axvspan(base, base * 2, color='blue', alpha=0.1)
-                else:
-                    ax.axvspan(0, base, color='blue', alpha=0.1)
-                    ax.axvspan(base, base * 1.1, color='yellow', alpha=0.2)
-                    ax.axvspan(base * 1.1, base * 2, color='red', alpha=0.2)
-                ax.scatter(val, 0, color='red', s=100)
-                ax.set_xlim(0, base * 2)
-                ax.set_title(f"{param} Evaluation")
-                st.pyplot(fig)
+        # --- 最新記録の選択とチャート ---
+        if not df_filtered.empty:
+            selected_datetime = st.selectbox("記録日時を選択", df_filtered["date_str"].tolist())
+            selected_record = df_filtered[df_filtered["date_str"] == selected_datetime].iloc[-1]
+            st.session_state.selected_record = selected_record
 
-            st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
+            # === 評価チャート + 経時変化グラフ ===
+            st.subheader("🧠 評価チャート")
+            period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
 
-        with right:
-            st.markdown("#### 📈 経時変化グラフ")
-            time_filtered = df_filtered.copy()
-            now = pd.Timestamp.now(tz="Asia/Tokyo")
-            if period != "全期間":
-                months = {"半年": 6, "1年": 12, "3年": 36}[period]
-                time_filtered["date_obj"] = pd.to_datetime(time_filtered["date"])
-                start_date = now - pd.DateOffset(months=months)
-                time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
+            left, right = st.columns([1, 2])
+            thresholds = {"TAV": 34.5, "RI": 0.68, "PI": 1.3, "EDV": 40.4}
+            directions = {"TAV": "Above", "RI": "Above", "PI": "Above", "EDV": "Below"}
+            eval_params = ["TAV", "RI", "PI", "EDV"]
 
-            metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-            col1, col2 = st.columns(2)
-            for i, metric in enumerate(metrics):
-                with (col1 if i % 2 == 0 else col2):
-                    fig2, ax2 = plt.subplots(figsize=(5, 2.5))
-                    ax2.plot(time_filtered["date"], time_filtered[metric], marker="o")
-                    ax2.set_title(f"{metric} Trend")
-                    ax2.set_xlabel("Date")
-                    ax2.set_ylabel(metric)
-                    ax2.grid(True)
-                    ax2.set_xticks(time_filtered["date"])
-                    ax2.set_xticklabels(time_filtered["date"], rotation=45, ha='right')
-                    st.pyplot(fig2)
+            with left:
+                for param in eval_params:
+                    val = selected_record[param]
+                    base = thresholds[param]
+                    direction = directions[param]
+                    fig, ax = plt.subplots(figsize=(4, 1.5))
+                    if direction == "Below":
+                        ax.axvspan(0, base * 0.9, color='red', alpha=0.2)
+                        ax.axvspan(base * 0.9, base, color='yellow', alpha=0.2)
+                        ax.axvspan(base, base * 2, color='blue', alpha=0.1)
+                    else:
+                        ax.axvspan(0, base, color='blue', alpha=0.1)
+                        ax.axvspan(base, base * 1.1, color='yellow', alpha=0.2)
+                        ax.axvspan(base * 1.1, base * 2, color='red', alpha=0.2)
+                    ax.scatter(val, 0, color='red', s=100)
+                    ax.set_xlim(0, base * 2)
+                    ax.set_title(f"{param} Evaluation")
+                    st.pyplot(fig)
+                st.caption("Red: 異常 / Yellow: 境界域 / Blue: 正常")
 
-        # === 所見コメント ===
-        st.subheader("📝 所見コメント入力")
-        comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
-        followup_date = st.date_input("次回検査日")
+            with right:
+                st.markdown("#### 📈 経時変化グラフ")
+                time_filtered = df_filtered.copy()
+                now = pd.Timestamp.now(tz="Asia/Tokyo")
+                if period != "全期間":
+                    months = {"半年": 6, "1年": 12, "3年": 36}[period]
+                    start_period = now - pd.DateOffset(months=months)
+                    time_filtered = time_filtered[time_filtered["date"] >= start_period]
 
-        if st.button("この所見を保存"):
-            try:
-                now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
-                supabase.table("followups").insert({
-                    "name": selected_name,
-                    "comment": comment,
-                    "followup_at": followup_date.strftime('%Y-%m-%d'),
-                    "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S'),
-                    "access_code": access_code
-                }).execute()
-                st.success("保存しました。")
-            except Exception as e:
-                st.error(f"保存エラー: {e}")
+                metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+                col1, col2 = st.columns(2)
+                for i, metric in enumerate(metrics):
+                    with (col1 if i % 2 == 0 else col2):
+                        fig2, ax2 = plt.subplots(figsize=(5, 2.5))
+                        ax2.plot(time_filtered["date_str"], time_filtered[metric], marker="o")
+                        ax2.set_title(f"{metric} Trend")
+                        ax2.set_xlabel("Date")
+                        ax2.set_ylabel(metric)
+                        ax2.grid(True)
+                        ax2.set_xticks(time_filtered["date_str"])
+                        ax2.set_xticklabels(time_filtered["date_str"], rotation=45, ha='right')
+                        st.pyplot(fig2)
 
+            # --- 所見コメント保存 ---
+            st.subheader("📝 所見コメント入力")
+            comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
+            followup_date = st.date_input("次回検査日")
 
+            if st.button("この所見を保存"):
+                try:
+                    now_jst = pd.Timestamp.now(tz="Asia/Tokyo")
+                    supabase.table("followups").insert({
+                        "name": selected_name,
+                        "comment": comment,
+                        "followup_at": followup_date.strftime('%Y-%m-%d'),
+                        "created_at": now_jst.strftime('%Y-%m-%d %H:%M:%S'),
+                        "access_code": access_code
+                    }).execute()
+                    st.success("保存しました。")
+                except Exception as e:
+                    st.error(f"保存エラー: {e}")
 
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
