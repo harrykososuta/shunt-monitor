@@ -717,9 +717,6 @@ if st.session_state.authenticated:
             st.write(f"### {selected_name} の記録一覧")
             st.dataframe(df_filtered[["id", "date_str", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "comment"]])
 
-        # --- 最新記録の選択とチャート ---
-        if not df_filtered.empty:
-
             # === 評価チャート + 経時変化グラフ ===
             st.subheader("🧠 評価チャート")
             period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
