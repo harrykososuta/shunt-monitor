@@ -732,13 +732,13 @@ if st.session_state.authenticated:
             selected_row = df_filtered[df_filtered["date_str"] == selected_date].iloc[0]
 
             st.write("修正内容を入力してください：")
-            fv = st.number_input("FV（血流量, ml/min）", value=selected_row["FV"], min_value=0.0)
-            ri = st.number_input("RI（抵抗指数）", value=selected_row["RI"], min_value=0.0)
-            pi = st.number_input("PI（脈波指数）", value=selected_row["PI"], min_value=0.0)
-            tav = st.number_input("TAV（時間平均流速, cm/s）", value=selected_row["TAV"], min_value=0.0)
-            tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", value=selected_row["TAMV"], min_value=0.0)
-            psv = st.number_input("PSV（収縮期最大速度, cm/s）", value=selected_row["PSV"], min_value=0.0)
-            edv = st.number_input("EDV（拡張期末速度, cm/s）", value=selected_row["EDV"], min_value=0.0)
+            fv = st.number_input("FV（血流量, ml/min）", value=float(selected_row["FV"]), min_value=0.0)
+            ri = st.number_input("RI（抵抗指数）", value=float(selected_row["RI"]), min_value=0.0)
+            pi = st.number_input("PI（脈波指数）", value=float(selected_row["PI"]), min_value=0.0)
+            tav = st.number_input("TAV（時間平均流速, cm/s）", value=float(selected_row["TAV"]), min_value=0.0)
+            tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", value=float(selected_row["TAMV"]), min_value=0.0)
+            psv = st.number_input("PSV（収縮期最大速度, cm/s）", value=float(selected_row["PSV"]), min_value=0.0)
+            edv = st.number_input("EDV（拡張期末速度, cm/s）", value=float(selected_row["EDV"]), min_value=0.0)
             note = st.text_area("備考（自由記述）", value=selected_row.get("note", ""))
 
             if st.button("修正を確定する"):
