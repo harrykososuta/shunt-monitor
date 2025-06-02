@@ -421,7 +421,7 @@ if st.session_state.authenticated:
                 if selected:
                     index = task_options.index(selected)
                     row = today_df.iloc[index]
-                    new_content = st.text_input("🗒 内容修正", value=row["content"])
+                    new_content = st.text_input("内容修正", value=row["content"])
                     time_col1, time_col2 = st.columns(2)
                     with time_col1:
                         new_start = st.time_input("⏰ 開始", value=row["start"].time(), key=f"start_{index}")
