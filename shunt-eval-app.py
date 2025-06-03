@@ -1,6 +1,5 @@
 import streamlit as st
 st.set_page_config(page_title="シャント機能評価", layout="wide")
-from streamlit_nested_layout import nested_layout
 
 from streamlit_calendar import calendar
 import pandas as pd
