@@ -288,46 +288,6 @@ if st.session_state.authenticated:
         </div>
         """, unsafe_allow_html=True)
 
-        # --- 上段：カレンダー表示 ---
-        st.subheader("🗕 タスクカレンダー")
-        try:
-            task_response = supabase.table("tasks") \
-                .select("start, end, content") \
-                .eq("access_code", st.session_state.generated_access_code) \
-                .execute()
-            task_df = pd.DataFrame(task_response.data)
-            task_df.dropna(subset=["start", "end", "content"], inplace=True)
-            task_df["start"] = pd.to_datetime(task_df["start"])
-            task_df["end"] = pd.to_datetime(task_df["end"])
-
-            events = [
-                {
-                    "title": row["content"],
-                    "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
-                    "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
-                    "allDay": False,
-                    "resourceId": "default"
-                }
-                for _, row in task_df.iterrows()
-            ]
-
-            from streamlit_calendar import calendar
-            calendar(events=events, options={
-                "initialView": "dayGridMonth",
-                "headerToolbar": {
-                    "start": "today prev,next",
-                    "center": "title",
-                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
-                },
-                "locale": "ja",
-                "selectable": True,
-                "editable": False,
-                "navLinks": True,
-                "resources": [{"id": "default", "title": "スケジュール"}]
-            }, key="calendar")
-        except Exception as e:
-            st.warning(f"カレンダー表示に失敗しました: {e}")
-
         # --- 中段：2カラムでフォームとリスト ---
         col1, col2 = st.columns([1, 1])
         with col1:
