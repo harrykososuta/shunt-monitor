@@ -268,7 +268,6 @@ elif page == "評価フォーム":
 if st.session_state.authenticated:
     if st.session_state.page == "ToDoリスト":
         from datetime import datetime, time, date
-        from streamlit_nested_layout import nested_layout
 
         # Safe title rendering without fallback ellipsis
         st.markdown("""
@@ -290,112 +289,111 @@ if st.session_state.authenticated:
         </div>
         """, unsafe_allow_html=True)
 
-        with nested_layout():
-            # --- 上段：カレンダー表示 ---
-            st.subheader("🗕 タスクカレンダー")
+        # --- 上段：カレンダー表示 ---
+        st.subheader("🗕 タスクカレンダー")
+        try:
+            task_response = supabase.table("tasks") \
+                .select("start, end, content") \
+                .eq("access_code", st.session_state.generated_access_code) \
+                .execute()
+            task_df = pd.DataFrame(task_response.data)
+            task_df.dropna(subset=["start", "end", "content"], inplace=True)
+            task_df["start"] = pd.to_datetime(task_df["start"])
+            task_df["end"] = pd.to_datetime(task_df["end"])
+
+            events = [
+                {
+                    "title": row["content"],
+                    "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
+                    "allDay": False,
+                    "resourceId": "default"
+                }
+                for _, row in task_df.iterrows()
+            ]
+
+            from streamlit_calendar import calendar
+            calendar(events=events, options={
+                "initialView": "dayGridMonth",
+                "headerToolbar": {
+                    "start": "today prev,next",
+                    "center": "title",
+                    "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+                },
+                "locale": "ja",
+                "selectable": True,
+                "editable": False,
+                "navLinks": True,
+                "resources": [{"id": "default", "title": "スケジュール"}]
+            })
+        except Exception as e:
+            st.warning(f"カレンダー表示に失敗しました: {e}")
+
+        # --- 中段：2カラムでフォームとリスト ---
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.subheader("🗓 タスク追加")
+            task_date = st.date_input("タスク日を選択", value=date.today())
+            c1, c2 = st.columns(2)
+            with c1:
+                start_time = st.time_input("開始時刻", value=time(9, 0))
+            with c2:
+                end_time = st.time_input("終了時刻", value=time(9, 30))
+            task_text = st.text_input("タスク内容を入力")
+            if st.button("追加"):
+                try:
+                    start_datetime = datetime.combine(task_date, start_time)
+                    end_datetime = datetime.combine(task_date, end_time)
+                    supabase.table("tasks").insert({
+                        "date": task_date.isoformat(),
+                        "start": start_datetime.isoformat(),
+                        "end": end_datetime.isoformat(),
+                        "content": task_text,
+                        "access_code": st.session_state.generated_access_code
+                    }).execute()
+                    st.success("タスクを追加しました")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"タスクの追加に失敗しました: {e}")
+
+        with col2:
+            st.subheader("🔔 本日の検査予定")
             try:
-                task_response = supabase.table("tasks") \
-                    .select("start, end, content") \
+                followups_response = supabase.table("followups") \
+                    .select("name, comment, followup_at") \
                     .eq("access_code", st.session_state.generated_access_code) \
                     .execute()
-                task_df = pd.DataFrame(task_response.data)
-                task_df.dropna(subset=["start", "end", "content"], inplace=True)
-                task_df["start"] = pd.to_datetime(task_df["start"])
-                task_df["end"] = pd.to_datetime(task_df["end"])
+                followups_df = pd.DataFrame(followups_response.data)
+                followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
+                today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
+                matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
+            except Exception:
+                matches = pd.DataFrame()
 
-                events = [
-                    {
-                        "title": row["content"],
-                        "start": row["start"].strftime("%Y-%m-%dT%H:%M:%S"),
-                        "end": row["end"].strftime("%Y-%m-%dT%H:%M:%S"),
-                        "allDay": False,
-                        "resourceId": "default"
-                    }
-                    for _, row in task_df.iterrows()
-                ]
+            if not matches.empty:
+                if "checked_items" not in st.session_state:
+                    st.session_state.checked_items = {}
+                unchecked_names = []
+                for i, row in matches.iterrows():
+                    key = f"check_{i}"
+                    if key not in st.session_state.checked_items:
+                        st.session_state.checked_items[key] = False
+                    check_col1, check_col2 = st.columns([1, 20])
+                    with check_col1:
+                        checked = st.checkbox("", key=key)
+                        st.session_state.checked_items[key] = checked
+                    with check_col2:
+                        with st.container(border=True):
+                            st.markdown(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
+                    if not st.session_state.checked_items[key]:
+                        unchecked_names.append(row['name'])
 
-                from streamlit_calendar import calendar
-                calendar(events=events, options={
-                    "initialView": "dayGridMonth",
-                    "headerToolbar": {
-                        "start": "today prev,next",
-                        "center": "title",
-                        "end": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
-                    },
-                    "locale": "ja",
-                    "selectable": True,
-                    "editable": False,
-                    "navLinks": True,
-                    "resources": [{"id": "default", "title": "スケジュール"}]
-                })
-            except Exception as e:
-                st.warning(f"カレンダー表示に失敗しました: {e}")
-
-            # --- 中段：2カラムでフォームとリスト ---
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                st.subheader("🗓 タスク追加")
-                task_date = st.date_input("タスク日を選択", value=date.today())
-                c1, c2 = st.columns(2)
-                with c1:
-                    start_time = st.time_input("開始時刻", value=time(9, 0))
-                with c2:
-                    end_time = st.time_input("終了時刻", value=time(9, 30))
-                task_text = st.text_input("タスク内容を入力")
-                if st.button("追加"):
-                    try:
-                        start_datetime = datetime.combine(task_date, start_time)
-                        end_datetime = datetime.combine(task_date, end_time)
-                        supabase.table("tasks").insert({
-                            "date": task_date.isoformat(),
-                            "start": start_datetime.isoformat(),
-                            "end": end_datetime.isoformat(),
-                            "content": task_text,
-                            "access_code": st.session_state.generated_access_code
-                        }).execute()
-                        st.success("タスクを追加しました")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"タスクの追加に失敗しました: {e}")
-
-            with col2:
-                st.subheader("🔔 本日の検査予定")
-                try:
-                    followups_response = supabase.table("followups") \
-                        .select("name, comment, followup_at") \
-                        .eq("access_code", st.session_state.generated_access_code) \
-                        .execute()
-                    followups_df = pd.DataFrame(followups_response.data)
-                    followups_df["followup_at"] = pd.to_datetime(followups_df["followup_at"])
-                    today = pd.Timestamp.now(tz="Asia/Tokyo").normalize()
-                    matches = followups_df[followups_df["followup_at"].dt.date == today.date()]
-                except Exception:
-                    matches = pd.DataFrame()
-
-                if not matches.empty:
-                    if "checked_items" not in st.session_state:
-                        st.session_state.checked_items = {}
-                    unchecked_names = []
-                    for i, row in matches.iterrows():
-                        key = f"check_{i}"
-                        if key not in st.session_state.checked_items:
-                            st.session_state.checked_items[key] = False
-                        check_col1, check_col2 = st.columns([1, 20])
-                        with check_col1:
-                            checked = st.checkbox("", key=key)
-                            st.session_state.checked_items[key] = checked
-                        with check_col2:
-                            with st.container(border=True):
-                                st.markdown(f"🧑‍⚕️ {row['name']} さん - コメント: {row['comment']}")
-                        if not st.session_state.checked_items[key]:
-                            unchecked_names.append(row['name'])
-
-                    if all(st.session_state.checked_items.values()):
-                        st.success("本日の検査予定はありません。")
-                    elif unchecked_names:
-                        st.warning(f"{', '.join(unchecked_names)} さんの検査が未実施です")
-                else:
-                    st.info("本日の検査予定はありません。")
+                if all(st.session_state.checked_items.values()):
+                    st.success("本日の検査予定はありません。")
+                elif unchecked_names:
+                    st.warning(f"{', '.join(unchecked_names)} さんの検査が未実施です")
+            else:
+                st.info("本日の検査予定はありません。")
 
         # --- カレンダー表示 ---
         st.subheader("🗕 タスクカレンダー")
