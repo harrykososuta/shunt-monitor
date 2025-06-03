@@ -834,7 +834,6 @@ if st.session_state.authenticated:
                 st.success("保存しました。")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-
 # ページ：患者データ一覧
 if st.session_state.authenticated and page == "患者データ一覧":
     st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
@@ -961,7 +960,6 @@ if st.session_state.authenticated and page == "患者データ一覧":
                         st.pyplot(fig)
                     else:
                         st.warning(f"{metric} に関して比較可能なデータがありません。")
-
 
 # 箱ひげ図（中央値・外れ値強調・N数表示）関数
 def draw_boxplot_with_median_outliers(data, metric, category_col):
