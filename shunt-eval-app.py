@@ -324,7 +324,7 @@ if st.session_state.authenticated:
                 "editable": False,
                 "navLinks": True,
                 "resources": [{"id": "default", "title": "スケジュール"}]
-            })
+            }, key="calendar")
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
 
@@ -332,14 +332,14 @@ if st.session_state.authenticated:
         col1, col2 = st.columns([1, 1])
         with col1:
             st.subheader("🗓 タスク追加")
-            task_date = st.date_input("タスク日を選択", value=date.today())
+            task_date = st.date_input("タスク日を選択", value=date.today(), key="task_date_input")
             c1, c2 = st.columns(2)
             with c1:
-                start_time = st.time_input("開始時刻", value=time(9, 0))
+                start_time = st.time_input("開始時刻", value=time(9, 0), key="start_time_input")
             with c2:
-                end_time = st.time_input("終了時刻", value=time(9, 30))
-            task_text = st.text_input("タスク内容を入力")
-            if st.button("追加"):
+                end_time = st.time_input("終了時刻", value=time(9, 30), key="end_time_input")
+            task_text = st.text_input("タスク内容を入力", key="task_text_input")
+            if st.button("追加", key="add_task_button"):
                 try:
                     start_datetime = datetime.combine(task_date, start_time)
                     end_datetime = datetime.combine(task_date, end_time)
