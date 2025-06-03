@@ -389,8 +389,9 @@ if st.session_state.authenticated:
                 "selectable": True,
                 "editable": False,
                 "navLinks": True,
+                "height": 600,
                 "resources": [{"id": "default", "title": "スケジュール"}]
-            }, height=600, key="calendar")
+            }, key="calendar")
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
 
