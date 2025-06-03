@@ -835,132 +835,160 @@ if st.session_state.authenticated:
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
-# ページ：患者データ一覧
-if st.session_state.authenticated and page == "患者データ一覧":
-    st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
+if st.session_state.authenticated and page == "患者管理":
+    st.title("患者管理リスト")
 
     try:
         access_code = st.session_state.generated_access_code
         response = supabase.table("shunt_records").select("*").eq("access_code", access_code).execute()
         df = pd.DataFrame(response.data)
     except Exception as e:
-        st.error(f"データ取得に失敗しました: {e}")
+        st.error(f"データ取得エラー: {e}")
         df = pd.DataFrame()
 
-    if df.empty:
-        st.info("患者データが存在しません。")
-    else:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
+    if not df.empty:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        try:
+            df["date"] = df["date"].dt.tz_localize("UTC")
+        except TypeError:
+            df["date"] = df["date"].dt.tz_convert("UTC")
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
-        df["date_display"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        name_counts = df.groupby("name")["id"].count().reset_index().rename(columns={"id": "記録数"})
+    else:
+        st.info("現在記録されている患者はいません。")
+        name_counts = pd.DataFrame()
 
-        unique_names = df["name"].dropna().unique().tolist()
+    # ▼ 患者一覧表示トグル
+    if st.button("患者一覧を表示 / 非表示", key="toggle_names"):
+        st.session_state.show_patient_list = not st.session_state.get("show_patient_list", False)
 
-        if 'show_patient_selector' not in st.session_state:
-            st.session_state.show_patient_selector = False
+    if st.session_state.get("show_patient_list", False) and not name_counts.empty:
+        st.dataframe(name_counts)
 
-        if st.button("患者記録をみる"):
-            st.session_state.show_patient_selector = not st.session_state.show_patient_selector
+    if not name_counts.empty:
+        # ▼ 氏名選択
+        selected_name = st.selectbox("患者氏名を選択", name_counts["name"].unique())
+        patient_data = df[df["name"] == selected_name].sort_values(by="date", ascending=True)
 
-        if st.session_state.show_patient_selector:
-            selected_name = st.selectbox("患者を選択", unique_names, key="select_patient")
-            patient_data = df[df["name"] == selected_name].sort_values(by="date")
+        # ▼ 検査日で絞り込み
+        st.markdown("### 検査日で絞り込み")
+        if not patient_data["date"].isnull().all():
+            min_date = pd.to_datetime(patient_data["date"]).min().date()
+            max_date = pd.to_datetime(patient_data["date"]).max().date()
 
-            if not patient_data.empty:
-                min_date = patient_data["date"].min().date()
-                max_date = patient_data["date"].max().date()
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("開始日を選択", value=min_date, min_value=min_date, max_value=max_date)
+            with col2:
+                end_date = st.date_input("終了日を選択", value=max_date, min_value=min_date, max_value=max_date)
 
-                with st.form("filter_form"):
-                    selected_range = st.date_input("記録日の範囲で絞り込み", [min_date, max_date])
-                    submitted = st.form_submit_button("この期間の記録を表示")
-
-                if submitted:
-                    st.session_state.show_filtered_data = True
-                    st.session_state.selected_range = selected_range
-
-                if st.session_state.get("show_filtered_data", False):
-                    start_date, end_date = st.session_state.selected_range
-                    start_dt = pd.Timestamp(start_date).tz_localize("Asia/Tokyo")
-                    end_dt = pd.Timestamp(end_date).tz_localize("Asia/Tokyo") + pd.Timedelta(days=1)
-
-                    filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
-
-                    with st.expander(f"{selected_name} の記録一覧（表示/非表示）", expanded=False):
-                        if filtered_data.empty:
-                            st.warning("選択された日付には検査記録がありません。")
-                        else:
-                            display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
-                            display_data = filtered_data.copy()
-                            display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-                            st.dataframe(display_data[display_columns], height=200)
-
-        st.markdown("---")
-        st.subheader("📊 特記事項カテゴリでの比較")
-        categories = df["tag"].dropna().unique().tolist()
-        va_types = df["va_type"].dropna().unique().tolist()
-        all_categories = sorted(set(categories + va_types))
-        selected_category = st.selectbox("特記事項またはVAの種類を選択して記録を表示", all_categories, key="cat_view")
-
-        if selected_category in categories:
-            cat_data = df[df["tag"] == selected_category]
+            if start_date > end_date:
+                st.error("開始日は終了日より前に設定してください。")
+            else:
+                patient_data = patient_data[
+                    (pd.to_datetime(patient_data["date"]).dt.date >= start_date) &
+                    (pd.to_datetime(patient_data["date"]).dt.date <= end_date)
+                ]
         else:
-            cat_data = df[df["va_type"] == selected_category]
+            st.warning("検査日が存在しないため、日付による絞り込みはできません。")
 
-        display_cat = cat_data.copy()
-        display_cat["date"] = cat_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        # ▼ 表示列の制限
+        columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+        if all(col in patient_data.columns for col in columns):
+            patient_data = patient_data[columns]
+        st.write(f"### {selected_name} の記録一覧")
+        st.dataframe(patient_data)
 
-        with st.expander(f"{selected_category} の記録一覧（表示/非表示）", expanded=False):
-            st.dataframe(display_cat)
+        # ▼ グラフ表示トグル（ラベル固定に変更）
+        if st.button("この患者のグラフを表示 / 非表示", key="toggle_graph_display"):
+            st.session_state.show_graph = not st.session_state.get("show_graph", False)
 
-        compare_categories = st.multiselect("比較したいカテゴリを選択（2つまで）", all_categories)
-        if len(compare_categories) == 2:
-            compare_data = df[
-                (df["tag"].isin(compare_categories)) | (df["va_type"].isin(compare_categories))
-            ].copy()
+        if st.session_state.get("show_graph", False):
+            date_range = st.selectbox("グラフの期間を選択", ["全期間", "直近半年", "直近1年", "直近3年", "直近5年"], index=0)
+            now = pd.Timestamp.now()
+            filtered_data = patient_data.copy()
+            if date_range != "全期間":
+                if date_range == "直近半年":
+                    cutoff = now - pd.DateOffset(months=6)
+                elif date_range == "直近1年":
+                    cutoff = now - pd.DateOffset(years=1)
+                elif date_range == "直近3年":
+                    cutoff = now - pd.DateOffset(years=3)
+                elif date_range == "直近5年":
+                    cutoff = now - pd.DateOffset(years=5)
+                cutoff = pd.to_datetime(cutoff)
+                filtered_data = filtered_data[pd.to_datetime(filtered_data["date"]) >= cutoff]
 
-            compare_data["category_label"] = None
-            compare_data.loc[
-                (compare_data["tag"] == compare_categories[0]) | (compare_data["va_type"] == compare_categories[0]),
-                "category_label"
-            ] = compare_categories[0]
-            compare_data.loc[
-                (compare_data["tag"] == compare_categories[1]) | (compare_data["va_type"] == compare_categories[1]),
-                "category_label"
-            ] = compare_categories[1]
-
-            st.markdown("#### ※ Mann-Whitney U Test")
             metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-            p_results = {"Metric": [], "p-value": []}
-            for metric in metrics:
-                group1 = compare_data[compare_data["category_label"] == compare_categories[0]][metric]
-                group2 = compare_data[compare_data["category_label"] == compare_categories[1]][metric]
-                if len(group1.dropna()) > 0 and len(group2.dropna()) > 0:
-                    stat, p = mannwhitneyu(group1, group2, alternative='two-sided')
-                    p_results["Metric"].append(metric)
-                    p_results["p-value"].append(round(p, 4))
-            st.dataframe(pd.DataFrame(p_results), height=150)
-
-            st.markdown("---")
-            st.subheader("📊 Boxplot Comparison")
             col1, col2 = st.columns(2)
             for i, metric in enumerate(metrics):
                 with (col1 if i % 2 == 0 else col2):
-                    plot_data = compare_data[["category_label", metric]].dropna()
-                    if plot_data["category_label"].nunique() == 2:
-                        fig, ax = plt.subplots(figsize=(5, 3))
-                        sns.boxplot(x="category_label", y=metric, data=plot_data, ax=ax,
-                                    medianprops={"color": "black", "linewidth": 2},
-                                    flierprops=dict(marker='o', markerfacecolor='red', markersize=6, linestyle='none'))
-                        group_counts = plot_data["category_label"].value_counts().to_dict()
-                        xtick_labels = [f"{label.get_text()}\n(n={group_counts.get(label.get_text(), 0)})" for label in ax.get_xticklabels()]
-                        ax.set_xticklabels(xtick_labels)
-                        ax.set_title(f"{metric} Comparison")
-                        ax.set_xlabel("Category")
-                        ax.set_ylabel(metric)
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                    else:
-                        st.warning(f"{metric} に関して比較可能なデータがありません。")
+                    fig, ax = plt.subplots(figsize=(5, 2.5))
+                    ax.plot(pd.to_datetime(filtered_data["date"]), filtered_data[metric], marker="o")
+                    ax.set_title(f"{metric} Trend")
+                    ax.set_xlabel("Date")
+                    ax.set_ylabel(metric)
+                    ax.grid(True)
+                    ax.set_xticks(pd.to_datetime(filtered_data["date"]))
+                    ax.set_xticklabels(pd.to_datetime(filtered_data["date"]).dt.strftime('%Y-%m-%d'), rotation=45, ha='right')
+                    st.pyplot(fig)
+
+        # ▼ 氏名修正フォーム（トグル + 確認）
+        if st.button("氏名を修正するフォームを表示 / 非表示", key="toggle_edit_form"):
+            st.session_state.show_edit_form = not st.session_state.get("show_edit_form", False)
+
+        if st.session_state.get("show_edit_form", False):
+            st.write("### 氏名の修正（氏名単位）")
+            unique_names = df["name"].dropna().unique().tolist()
+            edit_target_name = st.selectbox("修正対象の氏名", unique_names, key="edit_select")
+            new_name = st.text_input("新しい氏名", value=edit_target_name, key="new_name_input")
+
+            if "confirm_edit" not in st.session_state:
+                st.session_state.confirm_edit = False
+
+            if st.button("氏名を更新"):
+                if edit_target_name == new_name:
+                    st.warning("新しい氏名が変更前と同じです。")
+                else:
+                    st.session_state.confirm_edit = True
+
+            if st.session_state.confirm_edit:
+                if st.button("⚠ 本当に氏名を更新しますか？（再クリックで実行）"):
+                    supabase.table("shunt_records") \
+                        .update({"name": new_name}) \
+                        .eq("name", edit_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
+                    st.success("氏名を更新しました。ページを再読み込みしてください。")
+                    st.session_state.confirm_edit = False
+
+        # ▼ 記録削除フォーム（トグル + 確認）
+        if st.button("記録を削除するフォームを表示 / 非表示", key="toggle_delete_form"):
+            st.session_state.show_delete_form = not st.session_state.get("show_delete_form", False)
+
+        if st.session_state.get("show_delete_form", False):
+            st.write("### 記録の削除（氏名単位）")
+            unique_names = df["name"].dropna().unique().tolist()
+            delete_target_name = st.selectbox("削除する氏名", unique_names, key="delete_select")
+
+            if "confirm_delete" not in st.session_state:
+                st.session_state.confirm_delete = False
+
+            if st.button("記録を削除"):
+                st.session_state.confirm_delete = True
+
+            if st.session_state.confirm_delete:
+                if st.button("⚠ 本当に削除しますか？（再クリックで実行）"):
+                    supabase.table("shunt_records") \
+                        .delete() \
+                        .eq("name", delete_target_name) \
+                        .eq("access_code", st.session_state.generated_access_code) \
+                        .execute()
+                    st.success("記録を削除しました。ページを再読み込みしてください。")
+                    st.session_state.confirm_delete = False
+
+
 
 # 箱ひげ図（中央値・外れ値強調・N数表示）関数
 def draw_boxplot_with_median_outliers(data, metric, category_col):
