@@ -1058,15 +1058,13 @@ if st.session_state.authenticated and page == "患者データ一覧":
 
                     filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
 
-                    st.write(f"### {selected_name} の記録一覧")
-                    if filtered_data.empty:
-                        st.warning("選択された日付には検査記録がありません。")
-                    else:
-                        display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
-                        display_data = filtered_data.copy()
-                        display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-                        with st.expander("記録データ一覧を表示/非表示"):
+                    with st.expander(f"{selected_name} の記録一覧（表示/非表示）"):
+                        if filtered_data.empty:
+                            st.warning("選択された日付には検査記録がありません。")
+                        else:
+                            display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+                            display_data = filtered_data.copy()
+                            display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
                             st.dataframe(display_data[display_columns], height=200)
 
         st.markdown("---")
@@ -1083,8 +1081,9 @@ if st.session_state.authenticated and page == "患者データ一覧":
 
         display_cat = cat_data.copy()
         display_cat["date"] = cat_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-        st.write(f"#### {selected_category} の記録一覧")
-        st.dataframe(display_cat)
+
+        with st.expander(f"{selected_category} の記録一覧（表示/非表示）"):
+            st.dataframe(display_cat)
 
         compare_categories = st.multiselect("比較したいカテゴリを選択（2つまで）", all_categories)
         if len(compare_categories) == 2:
