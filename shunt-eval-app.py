@@ -288,34 +288,9 @@ if st.session_state.authenticated:
         </div>
         """, unsafe_allow_html=True)
 
-        # --- 中段：2カラムでフォームとリスト ---
+        # --- 中段：2カラムでリストとフォーム ---
         col1, col2 = st.columns([1, 1])
         with col1:
-            st.subheader("🗓 タスク追加")
-            task_date = st.date_input("タスク日を選択", value=date.today(), key="task_date_input")
-            c1, c2 = st.columns(2)
-            with c1:
-                start_time = st.time_input("開始時刻", value=time(9, 0), key="start_time_input")
-            with c2:
-                end_time = st.time_input("終了時刻", value=time(9, 30), key="end_time_input")
-            task_text = st.text_input("タスク内容を入力", key="task_text_input")
-            if st.button("追加", key="add_task_button"):
-                try:
-                    start_datetime = datetime.combine(task_date, start_time)
-                    end_datetime = datetime.combine(task_date, end_time)
-                    supabase.table("tasks").insert({
-                        "date": task_date.isoformat(),
-                        "start": start_datetime.isoformat(),
-                        "end": end_datetime.isoformat(),
-                        "content": task_text,
-                        "access_code": st.session_state.generated_access_code
-                    }).execute()
-                    st.success("タスクを追加しました")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"タスクの追加に失敗しました: {e}")
-
-        with col2:
             st.subheader("🔔 本日の検査予定")
             try:
                 followups_response = supabase.table("followups") \
@@ -353,6 +328,31 @@ if st.session_state.authenticated:
                     st.warning(f"{', '.join(unchecked_names)} さんの検査が未実施です")
             else:
                 st.info("本日の検査予定はありません。")
+
+        with col2:
+            st.subheader("🗓 タスク追加")
+            task_date = st.date_input("タスク日を選択", value=date.today(), key="task_date_input")
+            c1, c2 = st.columns(2)
+            with c1:
+                start_time = st.time_input("開始時刻", value=time(9, 0), key="start_time_input")
+            with c2:
+                end_time = st.time_input("終了時刻", value=time(9, 30), key="end_time_input")
+            task_text = st.text_input("タスク内容を入力", key="task_text_input")
+            if st.button("追加", key="add_task_button"):
+                try:
+                    start_datetime = datetime.combine(task_date, start_time)
+                    end_datetime = datetime.combine(task_date, end_time)
+                    supabase.table("tasks").insert({
+                        "date": task_date.isoformat(),
+                        "start": start_datetime.isoformat(),
+                        "end": end_datetime.isoformat(),
+                        "content": task_text,
+                        "access_code": st.session_state.generated_access_code
+                    }).execute()
+                    st.success("タスクを追加しました")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"タスクの追加に失敗しました: {e}")
 
         # --- カレンダー表示 ---
         st.subheader("🗕 タスクカレンダー")
