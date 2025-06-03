@@ -576,23 +576,6 @@ if st.session_state.authenticated and page == "評価フォーム":
         for comment in comments:
             st.write(f"- {comment}")
 
-    st.write("### 波形分類")
-    st.markdown("""
-    - Ⅰ・Ⅱ型：シャント機能は問題なし  
-    - Ⅲ型：50％程度の狭窄があるため精査  
-    - Ⅳ型：VAIVT提案念頭に精査  
-    - Ⅴ型：シャント閉塞の可能性大
-    """)
-
-    with st.expander("📌 補足説明を表示"):
-        st.markdown("""
-        - Ⅰ型：抵抗が低く、血流も良好  
-        - Ⅱ型：血流に若干の乱れ  
-        - Ⅲ型：狭窄の兆候あり  
-        - Ⅳ型：高度狭窄  
-        - Ⅴ型：血流停止の可能性
-        """)
-
     with st.expander("透析中の状態評価を入力"):
         g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
         blood_flow_setting = st.number_input("設定血液流量 (ml/min)", min_value=0.0)
@@ -622,16 +605,23 @@ if st.session_state.authenticated and page == "評価フォーム":
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
 
     with st.expander("📌 追加情報を表示"):
-        TAVR = tav / tamv if tamv != 0 else 0
-        RI_PI = ri / pi if pi != 0 else 0
-        st.write("### TAVRの算出")
-        st.write(f"TAVR: {TAVR:.2f}")
-        st.write("### RI/PI の算出")
-        st.write(f"RI/PI: {RI_PI:.2f}")
-        st.write("### 追加コメント")
-        st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
-        st.write("### 補足コメント")
-        st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
+    TAVR = tav / tamv if tamv != 0 else 0
+    RI_PI = ri / pi if pi != 0 else 0
+    st.write("### TAVRの算出")
+    st.write(f"TAVR: {TAVR:.2f}")
+    st.write("### RI/PI の算出")
+    st.write(f"RI/PI: {RI_PI:.2f}")
+    st.write("### 波形分類")
+    st.markdown("""
+    - Ⅰ・Ⅱ型：シャント機能は問題なし  
+    - Ⅲ型：50％程度の狭窄があるため精査  
+    - Ⅳ型：VAIVT提案念頭に精査  
+    - Ⅴ型：シャント閉塞の可能性大
+    """)
+    st.write("### 追加コメント")
+    st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
+    st.write("### 補足コメント")
+    st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
         if name and name.strip():
