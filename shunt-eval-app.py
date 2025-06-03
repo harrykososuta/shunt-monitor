@@ -834,6 +834,7 @@ if st.session_state.authenticated:
                 st.success("保存しました。")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
 # ページ：患者データ一覧
 if st.session_state.authenticated and page == "患者データ一覧":
     st.title("患者データ一覧（ボタン形式 + 特記事項比較）")
@@ -884,7 +885,7 @@ if st.session_state.authenticated and page == "患者データ一覧":
 
                     filtered_data = patient_data[(patient_data["date"] >= start_dt) & (patient_data["date"] < end_dt)]
 
-                    with st.expander(f"{selected_name} の記録一覧（表示/非表示）"):
+                    with st.expander(f"{selected_name} の記録一覧（表示/非表示）", expanded=False):
                         if filtered_data.empty:
                             st.warning("選択された日付には検査記録がありません。")
                         else:
@@ -908,7 +909,7 @@ if st.session_state.authenticated and page == "患者データ一覧":
         display_cat = cat_data.copy()
         display_cat["date"] = cat_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-        with st.expander(f"{selected_category} の記録一覧（表示/非表示）"):
+        with st.expander(f"{selected_category} の記録一覧（表示/非表示）", expanded=False):
             st.dataframe(display_cat)
 
         compare_categories = st.multiselect("比較したいカテゴリを選択（2つまで）", all_categories)
@@ -960,6 +961,7 @@ if st.session_state.authenticated and page == "患者データ一覧":
                         st.pyplot(fig)
                     else:
                         st.warning(f"{metric} に関して比較可能なデータがありません。")
+
 
 # 箱ひげ図（中央値・外れ値強調・N数表示）関数
 def draw_boxplot_with_median_outliers(data, metric, category_col):
