@@ -962,7 +962,6 @@ if st.session_state.authenticated and page == "患者データ一覧":
                     else:
                         st.warning(f"{metric} に関して比較可能なデータがありません。")
 
-
 # 箱ひげ図（中央値・外れ値強調・N数表示）関数
 def draw_boxplot_with_median_outliers(data, metric, category_col):
     fig, ax = plt.subplots(figsize=(6, 4))
