@@ -395,32 +395,6 @@ if st.session_state.authenticated:
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
 
-        # --- タスク追加 ---
-        st.subheader("🗓 タスク追加")
-        task_date = st.date_input("タスク日を選択", value=date.today())
-        col1, col2 = st.columns(2)
-        with col1:
-            start_time = st.time_input("開始時刻", value=time(9, 0))
-        with col2:
-            end_time = st.time_input("終了時刻", value=time(9, 30))
-        task_text = st.text_input("タスク内容を入力")
-
-        if st.button("追加"):
-            try:
-                start_datetime = datetime.combine(task_date, start_time)
-                end_datetime = datetime.combine(task_date, end_time)
-                supabase.table("tasks").insert({
-                    "date": task_date.isoformat(),
-                    "start": start_datetime.isoformat(),
-                    "end": end_datetime.isoformat(),
-                    "content": task_text,
-                    "access_code": st.session_state.generated_access_code
-                }).execute()
-                st.success("タスクを追加しました")
-                st.rerun()
-            except Exception as e:
-                st.error(f"タスクの追加に失敗しました: {e}")
-
         # --- タスク編集 ---
         st.subheader("🗕 登録済みタスク一覧（本日のみ）")
         try:
