@@ -873,32 +873,33 @@ if st.session_state.authenticated and page == "患者管理":
             st.session_state.show_patient_data = not st.session_state.get("show_patient_data", False)
 
         if st.session_state.get("show_patient_data", False):
-            st.markdown("### 検査日で絞り込み")
-            if not patient_data["date"].isnull().all():
-                min_date = pd.to_datetime(patient_data["date"]).min().date()
-                max_date = pd.to_datetime(patient_data["date"]).max().date()
+            with st.container():
+                st.markdown("### 検査日で絞り込み")
+                if not patient_data["date"].isnull().all():
+                    min_date = pd.to_datetime(patient_data["date"]).min().date()
+                    max_date = pd.to_datetime(patient_data["date"]).max().date()
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    start_date = st.date_input("開始日を選択", value=min_date, min_value=min_date, max_value=max_date)
-                with col2:
-                    end_date = st.date_input("終了日を選択", value=max_date, min_value=min_date, max_value=max_date)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        start_date = st.date_input("開始日を選択", value=min_date, min_value=min_date, max_value=max_date)
+                    with col2:
+                        end_date = st.date_input("終了日を選択", value=max_date, min_value=min_date, max_value=max_date)
 
-                if start_date > end_date:
-                    st.error("開始日は終了日より前に設定してください。")
+                    if start_date > end_date:
+                        st.error("開始日は終了日より前に設定してください。")
+                    else:
+                        patient_data = patient_data[
+                            (pd.to_datetime(patient_data["date"]).dt.date >= start_date) &
+                            (pd.to_datetime(patient_data["date"]).dt.date <= end_date)
+                        ]
                 else:
-                    patient_data = patient_data[
-                        (pd.to_datetime(patient_data["date"]).dt.date >= start_date) &
-                        (pd.to_datetime(patient_data["date"]).dt.date <= end_date)
-                    ]
-            else:
-                st.warning("検査日が存在しないため、日付による絞り込みはできません。")
+                    st.warning("検査日が存在しないため、日付による絞り込みはできません。")
 
-            columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
-            if all(col in patient_data.columns for col in columns):
-                patient_data = patient_data[columns]
-            st.write(f"### {selected_name} の記録一覧")
-            st.dataframe(patient_data)
+                columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+                if all(col in patient_data.columns for col in columns):
+                    patient_data = patient_data[columns]
+                st.write(f"### {selected_name} の記録一覧")
+                st.dataframe(patient_data)
 
         # ▼ グラフ表示トグル（ラベル固定に変更）
         if st.button("この患者のグラフを表示 / 非表示", key="toggle_graph_display"):
