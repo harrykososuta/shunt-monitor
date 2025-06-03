@@ -1065,7 +1065,9 @@ if st.session_state.authenticated and page == "患者データ一覧":
                         display_columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
                         display_data = filtered_data.copy()
                         display_data["date"] = display_data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-                        st.dataframe(display_data[display_columns], height=200)
+
+                        with st.expander("記録データ一覧を表示/非表示"):
+                            st.dataframe(display_data[display_columns], height=200)
 
         st.markdown("---")
         st.subheader("📊 特記事項カテゴリでの比較")
