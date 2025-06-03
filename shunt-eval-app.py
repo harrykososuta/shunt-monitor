@@ -355,7 +355,7 @@ if st.session_state.authenticated:
                     st.error(f"タスクの追加に失敗しました: {e}")
 
         # --- カレンダー表示 ---
-        st.subheader("🗕 タスクカレンダー")
+        st.subheader("🗓 タスクカレンダー")
         try:
             task_response = supabase.table("tasks") \
                 .select("start, end, content") \
@@ -390,7 +390,7 @@ if st.session_state.authenticated:
                 "editable": False,
                 "navLinks": True,
                 "resources": [{"id": "default", "title": "スケジュール"}]
-            })
+            }, height=600, key="calendar")
         except Exception as e:
             st.warning(f"カレンダー表示に失敗しました: {e}")
 
