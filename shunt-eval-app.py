@@ -527,42 +527,42 @@ if st.session_state.authenticated and page == "評価フォーム":
         st.error(f"名前一覧の取得エラー: {e}")
         name_list = []
 
-    name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
-    col_date, col_name = st.columns(2)
-    with col_date:
-        date_selected = st.date_input("記録日を選択", value=date.today())
-    with col_name:
-        if name_option == "新規入力":
-            name = st.text_input("氏名（任意）※本名では記入しないでください")
-        else:
-            name = st.selectbox("過去の患者名から選択", name_list)
+    with st.container(border=True):
+        name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
+        col_date, col_name = st.columns(2)
+        with col_date:
+            date_selected = st.date_input("記録日を選択", value=date.today())
+        with col_name:
+            if name_option == "新規入力":
+                name = st.text_input("氏名（任意）※本名では記入しないでください")
+            else:
+                name = st.selectbox("過去の患者名から選択", name_list)
 
-    col_tag, col_va = st.columns(2)
-    with col_tag:
-        tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
-    with col_va:
-        va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
+        col_tag, col_va = st.columns(2)
+        with col_tag:
+            tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
+        with col_va:
+            va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
 
-    col_fv, col_tav = st.columns(2)
-    with col_fv:
-        fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
-    with col_tav:
-        tav = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=60.0)
+        col_fv, col_tav = st.columns(2)
+        with col_fv:
+            fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
+        with col_tav:
+            tav = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=60.0)
 
-    tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=100.0)
+        tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=100.0)
 
-    col_ri, col_pi = st.columns(2)
-    with col_ri:
-        ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
-    with col_pi:
-        pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.2)
+        col_ri, col_pi = st.columns(2)
+        with col_ri:
+            ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
+        with col_pi:
+            pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.2)
 
-    col_psv, col_edv = st.columns(2)
-    with col_psv:
-        psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
-    with col_edv:
-        edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
-
+        col_psv, col_edv = st.columns(2)
+        with col_psv:
+            psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
+        with col_edv:
+            edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
     # --- 評価スコア ---
     score = 0
     comments = []
