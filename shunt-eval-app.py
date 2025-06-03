@@ -834,7 +834,7 @@ if st.session_state.authenticated:
                 st.success("保存しました。")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-
+                
 if st.session_state.authenticated and page == "患者管理":
     st.title("患者管理リスト")
 
@@ -859,7 +859,6 @@ if st.session_state.authenticated and page == "患者管理":
         st.info("現在記録されている患者はいません。")
         name_counts = pd.DataFrame()
 
-    # ▼ 患者一覧表示トグル
     if st.button("患者一覧を表示 / 非表示", key="toggle_names"):
         st.session_state.show_patient_list = not st.session_state.get("show_patient_list", False)
 
@@ -867,38 +866,39 @@ if st.session_state.authenticated and page == "患者管理":
         st.dataframe(name_counts)
 
     if not name_counts.empty:
-        # ▼ 氏名選択
         selected_name = st.selectbox("患者氏名を選択", name_counts["name"].unique())
         patient_data = df[df["name"] == selected_name].sort_values(by="date", ascending=True)
 
-        # ▼ 検査日で絞り込み
-        st.markdown("### 検査日で絞り込み")
-        if not patient_data["date"].isnull().all():
-            min_date = pd.to_datetime(patient_data["date"]).min().date()
-            max_date = pd.to_datetime(patient_data["date"]).max().date()
+        if st.button("この患者の記録を表示 / 非表示", key="toggle_patient_data"):
+            st.session_state.show_patient_data = not st.session_state.get("show_patient_data", False)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("開始日を選択", value=min_date, min_value=min_date, max_value=max_date)
-            with col2:
-                end_date = st.date_input("終了日を選択", value=max_date, min_value=min_date, max_value=max_date)
+        if st.session_state.get("show_patient_data", False):
+            st.markdown("### 検査日で絞り込み")
+            if not patient_data["date"].isnull().all():
+                min_date = pd.to_datetime(patient_data["date"]).min().date()
+                max_date = pd.to_datetime(patient_data["date"]).max().date()
 
-            if start_date > end_date:
-                st.error("開始日は終了日より前に設定してください。")
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input("開始日を選択", value=min_date, min_value=min_date, max_value=max_date)
+                with col2:
+                    end_date = st.date_input("終了日を選択", value=max_date, min_value=min_date, max_value=max_date)
+
+                if start_date > end_date:
+                    st.error("開始日は終了日より前に設定してください。")
+                else:
+                    patient_data = patient_data[
+                        (pd.to_datetime(patient_data["date"]).dt.date >= start_date) &
+                        (pd.to_datetime(patient_data["date"]).dt.date <= end_date)
+                    ]
             else:
-                patient_data = patient_data[
-                    (pd.to_datetime(patient_data["date"]).dt.date >= start_date) &
-                    (pd.to_datetime(patient_data["date"]).dt.date <= end_date)
-                ]
-        else:
-            st.warning("検査日が存在しないため、日付による絞り込みはできません。")
+                st.warning("検査日が存在しないため、日付による絞り込みはできません。")
 
-        # ▼ 表示列の制限
-        columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
-        if all(col in patient_data.columns for col in columns):
-            patient_data = patient_data[columns]
-        st.write(f"### {selected_name} の記録一覧")
-        st.dataframe(patient_data)
+            columns = ["id", "name", "date", "va_type", "FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV", "score", "tag", "note"]
+            if all(col in patient_data.columns for col in columns):
+                patient_data = patient_data[columns]
+            st.write(f"### {selected_name} の記録一覧")
+            st.dataframe(patient_data)
 
         # ▼ グラフ表示トグル（ラベル固定に変更）
         if st.button("この患者のグラフを表示 / 非表示", key="toggle_graph_display"):
