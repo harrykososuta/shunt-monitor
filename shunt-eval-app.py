@@ -679,6 +679,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                     "access_code": access_code
                 }).execute()
                 st.success("記録が保存されました。")
+                del st.session_state.form_inputs
                 st.rerun()
             except Exception as e:
                 st.error(f"保存中にエラーが発生しました: {e}")
