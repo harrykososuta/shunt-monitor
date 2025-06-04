@@ -701,39 +701,37 @@ if st.session_state.authenticated:
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
         df["date_str"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-        names = df["name"].dropna().unique().tolist()
-        selected_name = st.selectbox("氏名を選択", names)
-        df_filtered = df[df["name"] == selected_name].copy()
+        with st.container(border=True):
+            names = df["name"].dropna().unique().tolist()
+            selected_name = st.selectbox("氏名を選択", names)
+            df_filtered = df[df["name"] == selected_name].copy()
 
-        # 検査期間選択
-        st.subheader("🗓 検査期間を選択")
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.date_input("開始日", value=df_filtered["date"].min().date())
-        with col2:
-            end_date = st.date_input("終了日", value=df_filtered["date"].max().date())
+            st.subheader("🗓 検査期間を選択")
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("開始日", value=df_filtered["date"].min().date())
+            with col2:
+                end_date = st.date_input("終了日", value=df_filtered["date"].max().date())
 
-        df_filtered = df_filtered[(df_filtered["date"].dt.date >= start_date) & (df_filtered["date"].dt.date <= end_date)]
+            df_filtered = df_filtered[(df_filtered["date"].dt.date >= start_date) & (df_filtered["date"].dt.date <= end_date)]
 
-        # 記録一覧の表示/非表示トグル
-        if "show_record_list" not in st.session_state:
-            st.session_state.show_record_list = False
+            if "show_record_list" not in st.session_state:
+                st.session_state.show_record_list = False
 
-        if st.button("記録一覧を表示 / 非表示"):
-            st.session_state.show_record_list = not st.session_state.show_record_list
+            if st.button("記録一覧を表示 / 非表示"):
+                st.session_state.show_record_list = not st.session_state.show_record_list
 
-        if st.session_state.show_record_list:
-            st.write(f"### {selected_name} の記録一覧")
-            df_display = df_filtered.drop(columns=["created_at"], errors="ignore")
-            st.dataframe(df_display.sort_values("date", ascending=False))
+            if st.session_state.show_record_list:
+                st.write(f"### {selected_name} の記録一覧")
+                df_display = df_filtered.drop(columns=["created_at"], errors="ignore")
+                st.dataframe(df_display.sort_values("date", ascending=False))
 
-        # 🔧 記録修正モード
-        st.subheader("✏️ 記録を修正する")
-        if "edit_mode" not in st.session_state:
-            st.session_state.edit_mode = False
+            st.subheader("✏️ 記録を修正する")
+            if "edit_mode" not in st.session_state:
+                st.session_state.edit_mode = False
 
-        if st.button("記録を修正する"):
-            st.session_state.edit_mode = True
+            if st.button("記録を修正する"):
+                st.session_state.edit_mode = True
 
         if st.session_state.edit_mode:
             st.write("どの記録を修正しますか？")
