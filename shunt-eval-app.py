@@ -766,6 +766,8 @@ if st.session_state.authenticated:
                 except Exception as e:
                     st.error(f"修正に失敗しました: {e}")
 
+        selected_record = df_filtered.sort_values("date", ascending=False).iloc[0]
+
         with st.container(border=True):
             st.subheader("🧠 評価チャート")
             period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
