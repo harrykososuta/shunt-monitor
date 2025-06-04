@@ -554,7 +554,7 @@ if st.session_state.authenticated and page == "評価フォーム":
         with col_ri:
             ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
         with col_pi:
-            pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.2)
+            pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.0)
 
         col_psv, col_edv = st.columns(2)
         with col_psv:
@@ -679,6 +679,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                     "access_code": access_code
                 }).execute()
                 st.success("記録が保存されました。")
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"保存中にエラーが発生しました: {e}")
         else:
