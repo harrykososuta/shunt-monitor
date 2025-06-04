@@ -810,9 +810,10 @@ if st.session_state.authenticated:
                         start_date = now - pd.DateOffset(months=months)
                         time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
 
-                    metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+                    all_metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+                    selected_metrics = st.multiselect("表示する項目を選択", all_metrics, default=all_metrics)
                     col1, col2 = st.columns(2)
-                    for i, metric in enumerate(metrics):
+                    for i, metric in enumerate(selected_metrics):
                         with (col1 if i % 2 == 0 else col2):
                             fig2, ax2 = plt.subplots(figsize=(5, 2.5))
                             ax2.plot(time_filtered["date_short"], time_filtered[metric], marker="o")
@@ -842,11 +843,11 @@ if st.session_state.authenticated:
 
             st.write(f"評価スコア: {score} / 4")
             if score == 0:
-                st.success("シャント機能は正常です。経過観察が推奨されます。")
+                st.success("🟢 正常：経過観察が推奨されます")
             elif score in [1, 2]:
-                st.warning("シャント機能は要注意です。追加評価が必要です。")
+                st.warning("🟡 要注意：追加評価が必要です")
             else:
-                st.error("シャント不全のリスクが高いです。専門的な評価が必要です。")
+                st.error("🔴 高リスク：専門的な評価が必要です")
 
             if comments:
                 st.write("### 評価コメント")
