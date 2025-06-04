@@ -771,6 +771,7 @@ if st.session_state.authenticated:
 
         with st.container(border=True):
             st.subheader("🧠 評価チャート")
+            st.caption("※最新の検査値を表示")
             period = st.selectbox("表示期間", ["全期間", "半年", "1年", "3年"])
 
             left, right = st.columns([1, 2])
