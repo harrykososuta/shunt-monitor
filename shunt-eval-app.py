@@ -677,7 +677,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.error(f"保存中にエラーが発生しました: {e}")
         else:
             st.warning("氏名を入力してください（匿名可・本名以外でOK）")
-
+            
 if st.session_state.authenticated:
     if page == "記録一覧とグラフ":
         st.title("📊 記録の一覧と経時変化グラフ")
@@ -821,6 +821,36 @@ if st.session_state.authenticated:
                         ax2.set_xticks(time_filtered["date_str"])
                         ax2.set_xticklabels(time_filtered["date_str"], rotation=45, ha='right')
                         st.pyplot(fig2)
+
+            # 自動評価スコア表示
+            st.subheader("🔍 自動評価結果")
+            score = 0
+            comments = []
+            if selected_record["TAV"] <= 34.5:
+                score += 1
+                comments.append("TAVが34.5 cm/s以下 → 低血流が疑われる")
+            if selected_record["RI"] >= 0.68:
+                score += 1
+                comments.append("RIが0.68以上 → 高抵抗が疑われる")
+            if selected_record["PI"] >= 1.3:
+                score += 1
+                comments.append("PIが1.3以上 → 脈波指数が高い")
+            if selected_record["EDV"] <= 40.4:
+                score += 1
+                comments.append("EDVが40.4 cm/s以下 → 拡張期血流速度が低い")
+
+            st.write(f"評価スコア: {score} / 4")
+            if score == 0:
+                st.success("シャント機能は正常です。経過観察が推奨されます。")
+            elif score in [1, 2]:
+                st.warning("シャント機能は要注意です。追加評価が必要です。")
+            else:
+                st.error("シャント不全のリスクが高いです。専門的な評価が必要です。")
+
+            if comments:
+                st.write("### 評価コメント")
+                for comment in comments:
+                    st.write(f"- {comment}")
 
             st.subheader("📝 所見コメント入力")
             comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
