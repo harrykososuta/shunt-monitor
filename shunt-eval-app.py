@@ -480,8 +480,6 @@ if st.session_state.authenticated:
         if st.session_state.get("task_delete_error"):
             st.error("削除に失敗しました。")
             st.session_state.task_delete_error = False
-
-
             
 # --- シミュレーションツール ページ ---
 if st.session_state.authenticated and page == "シミュレーションツール":
@@ -512,8 +510,7 @@ if st.session_state.authenticated and page == "シミュレーションツール
 
 
 if st.session_state.authenticated and page == "評価フォーム":
-
-    from datetime import datetime, date  # 修正済み
+    from datetime import datetime, date
 
     try:
         access_code = st.session_state.generated_access_code
@@ -528,6 +525,7 @@ if st.session_state.authenticated and page == "評価フォーム":
         name_list = []
 
     with st.container(border=True):
+        st.subheader("📝 評価フォーム 入力")
         name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
         col_date, col_name = st.columns(2)
         with col_date:
@@ -563,35 +561,38 @@ if st.session_state.authenticated and page == "評価フォーム":
             psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
         with col_edv:
             edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
-    # --- 評価スコア ---
+
+    st.subheader("🔍 自動評価スコア")
     score = 0
     comments = []
     if tav <= 34.5:
         score += 1
-        comments.append("TAVが34.5 cm/s以下 → 低血流が疑われる")
+        comments.append(("warning", "TAVが34.5 cm/s以下 → 低血流が疑われる"))
     if ri >= 0.68:
         score += 1
-        comments.append("RIが0.68以上 → 高抵抗が疑われる")
+        comments.append(("warning", "RIが0.68以上 → 高抵抗が疑われる"))
     if pi >= 1.3:
         score += 1
-        comments.append("PIが1.3以上 → 脈波指数が高い")
+        comments.append(("warning", "PIが1.3以上 → 脈波指数が高い"))
     if edv <= 40.4:
         score += 1
-        comments.append("EDVが40.4 cm/s以下 → 拡張期血流速度が低い")
+        comments.append(("warning", "EDVが40.4 cm/s以下 → 拡張期血流速度が低い"))
 
-    st.write("### 評価結果")
     st.write(f"評価スコア: {score} / 4")
     if score == 0:
-        st.success("シャント機能は正常です。経過観察が推奨されます。")
+        st.success("🟢 正常：経過観察が推奨されます")
     elif score in [1, 2]:
-        st.warning("シャント機能は要注意です。追加評価が必要です。")
+        st.warning("🟡 要注意：追加評価が必要です")
     else:
-        st.error("シャント不全のリスクが高いです。専門的な評価が必要です。")
+        st.error("🔴 高リスク：専門的な評価が必要です")
 
     if comments:
         st.write("### 評価コメント")
-        for comment in comments:
-            st.write(f"- {comment}")
+        for level, comment in comments:
+            if level == "warning":
+                st.warning(f"- {comment}")
+            else:
+                st.write(f"- {comment}")
 
     with st.expander("透析中の状態評価を入力"):
         g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
@@ -620,34 +621,33 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.info("穿刺部の再考、エコー検査を推奨します")
 
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
-    
+
     with st.expander("📌 追加情報を表示"):
-                TAVR = tav / tamv if tamv != 0 else 0
-                RI_PI = ri / pi if pi != 0 else 0
+        TAVR = tav / tamv if tamv != 0 else 0
+        RI_PI = ri / pi if pi != 0 else 0
 
-                st.write("### TAVRの算出")
-                st.write(f"TAVR: {TAVR:.2f}")
-                st.write("### RI/PI の算出")
-                st.write(f"RI/PI: {RI_PI:.2f}")
+        st.write("### TAVRの算出")
+        st.write(f"TAVR: {TAVR:.2f}")
+        st.write("### RI/PI の算出")
+        st.write(f"RI/PI: {RI_PI:.2f}")
 
-                st.write("### 波形分類")
-                st.markdown("""
-                - Ⅰ・Ⅱ型：シャント機能は問題なし  
-                - Ⅲ型：50％程度の狭窄があるため精査  
-                - Ⅳ型：VAIVT提案念頭に精査  
-                - Ⅴ型：シャント閉塞の可能性大
-                """)
+        st.write("### 波形分類")
+        st.markdown("""
+        - Ⅰ・Ⅱ型：シャント機能は問題なし  
+        - Ⅲ型：50％程度の狭窄があるため精査  
+        - Ⅳ型：VAIVT提案念頭に精査  
+        - Ⅴ型：シャント閉塞の可能性大
+        """)
 
-                st.write("### 追加コメント")
-                st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
-                st.write("### 補足コメント")
-                st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
+        st.write("### 追加コメント")
+        st.markdown("吻合部付近に2.0mmを超える分岐血管がある場合は遮断試験を行ってください")
+        st.write("### 補足コメント")
+        st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
-    
     if st.button("記録を保存"):
         if name and name.strip():
             now = datetime.combine(date_selected, datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
-            comment_joined = "; ".join(comments)
+            comment_joined = "; ".join([c[1] for c in comments])
             access_code = st.session_state.generated_access_code
             st.write("🔑 現在のアクセスコード:", access_code)
 
