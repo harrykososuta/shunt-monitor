@@ -699,6 +699,7 @@ if st.session_state.authenticated:
             df["date"] = df["date"].dt.tz_localize("UTC")
         df["date"] = df["date"].dt.tz_convert("Asia/Tokyo")
         df["date_str"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+        df["date_short"] = df["date"].dt.strftime("%Y-%m-%d")
 
         with st.container(border=True):
             names = df["name"].dropna().unique().tolist()
@@ -799,45 +800,44 @@ if st.session_state.authenticated:
                 st.caption("Red: Abnormal / Yellow: Near Cutoff / Blue: Normal")
 
             with right:
-                st.markdown("#### 📈 経時変化グラフ")
-                time_filtered = df_filtered.copy()
-                now = pd.Timestamp.now(tz="Asia/Tokyo")
-                if period != "全期間":
-                    months = {"半年": 6, "1年": 12, "3年": 36}[period]
-                    time_filtered["date_obj"] = pd.to_datetime(time_filtered["date"])
-                    start_date = now - pd.DateOffset(months=months)
-                    time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
+                with st.expander("📈 経時変化グラフを表示"):
+                    time_filtered = df_filtered.copy()
+                    now = pd.Timestamp.now(tz="Asia/Tokyo")
+                    if period != "全期間":
+                        months = {"半年": 6, "1年": 12, "3年": 36}[period]
+                        time_filtered["date_obj"] = pd.to_datetime(time_filtered["date"])
+                        start_date = now - pd.DateOffset(months=months)
+                        time_filtered = time_filtered[time_filtered["date_obj"] >= start_date]
 
-                metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
-                col1, col2 = st.columns(2)
-                for i, metric in enumerate(metrics):
-                    with (col1 if i % 2 == 0 else col2):
-                        fig2, ax2 = plt.subplots(figsize=(5, 2.5))
-                        ax2.plot(time_filtered["date_str"], time_filtered[metric], marker="o")
-                        ax2.set_title(f"{metric} Trend")
-                        ax2.set_xlabel("Date")
-                        ax2.set_ylabel(metric)
-                        ax2.grid(True)
-                        ax2.set_xticks(time_filtered["date_str"])
-                        ax2.set_xticklabels(time_filtered["date_str"], rotation=45, ha='right')
-                        st.pyplot(fig2)
+                    metrics = ["FV", "RI", "PI", "TAV", "TAMV", "PSV", "EDV"]
+                    col1, col2 = st.columns(2)
+                    for i, metric in enumerate(metrics):
+                        with (col1 if i % 2 == 0 else col2):
+                            fig2, ax2 = plt.subplots(figsize=(5, 2.5))
+                            ax2.plot(time_filtered["date_short"], time_filtered[metric], marker="o")
+                            ax2.set_title(f"{metric} Trend")
+                            ax2.set_xlabel("Date")
+                            ax2.set_ylabel(metric)
+                            ax2.grid(True)
+                            ax2.set_xticks(time_filtered["date_short"])
+                            ax2.set_xticklabels(time_filtered["date_short"], rotation=45, ha='right')
+                            st.pyplot(fig2)
 
-            # 自動評価スコア表示
             st.subheader("🔍 自動評価結果")
             score = 0
             comments = []
             if selected_record["TAV"] <= 34.5:
                 score += 1
-                comments.append("TAVが34.5 cm/s以下 → 低血流が疑われる")
+                comments.append(("warning", "TAVが34.5 cm/s以下 → 低血流が疑われる"))
             if selected_record["RI"] >= 0.68:
                 score += 1
-                comments.append("RIが0.68以上 → 高抵抗が疑われる")
+                comments.append(("warning", "RIが0.68以上 → 高抵抗が疑われる"))
             if selected_record["PI"] >= 1.3:
                 score += 1
-                comments.append("PIが1.3以上 → 脈波指数が高い")
+                comments.append(("warning", "PIが1.3以上 → 脈波指数が高い"))
             if selected_record["EDV"] <= 40.4:
                 score += 1
-                comments.append("EDVが40.4 cm/s以下 → 拡張期血流速度が低い")
+                comments.append(("warning", "EDVが40.4 cm/s以下 → 拡張期血流速度が低い"))
 
             st.write(f"評価スコア: {score} / 4")
             if score == 0:
@@ -849,8 +849,11 @@ if st.session_state.authenticated:
 
             if comments:
                 st.write("### 評価コメント")
-                for comment in comments:
-                    st.write(f"- {comment}")
+                for level, comment in comments:
+                    if level == "warning":
+                        st.warning(f"- {comment}")
+                    else:
+                        st.write(f"- {comment}")
 
             st.subheader("📝 所見コメント入力")
             comment = st.selectbox("所見コメントを選択", ["透析後に評価", "次回透析日に評価", "経過観察", "VAIVT提案"])
