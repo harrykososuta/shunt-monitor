@@ -594,31 +594,31 @@ if st.session_state.authenticated and page == "評価フォーム":
             else:
                 st.write(f"- {comment}")
 
-    with st.expander("透析中の状態評価を入力"):
-        g_size = st.selectbox("穿刺針のG数は？", ["15G", "16G", "17G"])
-        blood_flow_setting = st.number_input("設定血液流量 (ml/min)", min_value=0.0)
-        issue_de = st.radio("脱血不良がありますか？", ["いいえ", "はい"])
-        de_type = st.radio("穿刺方向は？", ["順行性穿刺", "逆行性穿刺"]) if issue_de == "はい" else ""
+    # --- AI診断ブロック ---
+    with st.container(border=True):
+        with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
+            if st.button("AI診断を実行"):
+                ai_comments = []
+                if fv > 1500:
+                    ai_comments.append("FVが1500 ml/min以上 → large shunt の可能性があります")
+                if tav < 25 and 500 <= fv <= 1000:
+                    ai_comments.append("TAVが非常に低く、FVは正常範囲 → 上腕動脈径が大きいため、過大評価の可能性があります")
+                if tav < 34.5 and pi >= 1.3 and edv < 40.4:
+                    ai_comments.append("TAVおよびEDVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が強く疑われます。VAIVT提案を検討してください")
+                elif tav < 34.5 and pi >= 1.3:
+                    ai_comments.append("TAVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が疑われます")
+                if tav < 34.5 and edv < 40.4 and pi < 1.3:
+                    ai_comments.append("TAVとEDVが低下しており、中等度の吻合部狭窄が疑われます")
+                if tav < 34.5 and edv >= 40.4:
+                    ai_comments.append("TAVが低下しており、軽度の吻合部狭窄の可能性があります")
+                if ri >= 0.68 and edv < 40.4:
+                    ai_comments.append("RIが高く、EDVが低下。末梢側の狭窄が疑われます")
+                if pi >= 1.3 and ri >= 0.68:
+                    ai_comments.append("RIとPIがともに高値。全体的な高抵抗状態が示唆されます")
 
-        issue_pressure = st.radio("静脈圧の上昇はありますか？", ["いいえ", "はい"])
-        static_pressure = mean_pressure = iap_ratio = 0.0
-        if issue_pressure == "はい" and va_type == "AVG":
-            static_pressure = st.number_input("静的静脈圧 (mmHg)", min_value=0.0)
-            mean_pressure = st.number_input("平均血圧 (mmHg)", min_value=0.0)
-            iap_ratio = static_pressure / mean_pressure if mean_pressure else 0.0
-
-        recirculation = st.number_input("再循環はありますか？ (％)", min_value=0.0, max_value=100.0)
-
-        if st.button("透析評価"):
-            if issue_de == "はい":
-                st.info("次回逆行性穿刺でお願いします" if de_type == "順行性穿刺" else "A穿刺部より末梢に狭窄が疑われます")
-            if issue_pressure == "はい":
-                if va_type == "AVF":
-                    st.info("V穿刺部より中枢に狭窄が疑われます")
-                elif static_pressure >= 40 and iap_ratio > 0.40:
-                    st.info("G-Vか中枢の狭窄が疑われます")
-            if (va_type == "AVF" and recirculation > 5) or (va_type == "AVG" and recirculation > 10):
-                st.info("穿刺部の再考、エコー検査を推奨します")
+                st.subheader("🧠 AI診断コメント")
+                for comment in ai_comments:
+                    st.info(comment)
 
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
 
