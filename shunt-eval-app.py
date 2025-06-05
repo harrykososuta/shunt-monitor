@@ -594,7 +594,7 @@ if st.session_state.authenticated and page == "評価フォーム":
             else:
                 st.write(f"- {comment}")
                 
-    # --- AI診断ブロック ---
+   # --- AI診断ブロック ---
     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
@@ -611,6 +611,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                 ai_main_comment = ""
                 ai_supplement = ""
 
+                # 優先度の高い条件から順に判定
                 if form["tav"] < 34.5 and form["pi"] >= 1.3 and form["edv"] < 40.4:
                     ai_main_comment = "TAVおよびEDVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が強く疑われます。VAIVT提案を検討してください"
                 elif form["tav"] < 34.5 and form["pi"] >= 1.3:
