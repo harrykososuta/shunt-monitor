@@ -594,7 +594,7 @@ if st.session_state.authenticated and page == "評価フォーム":
             else:
                 st.write(f"- {comment}")
                 
-   # --- AI診断ブロック ---
+    # --- AI診断ブロック ---
     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
@@ -638,6 +638,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.info(ai_main_comment)
                 if ai_supplement:
                     st.info(ai_supplement)
+
 
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
 
