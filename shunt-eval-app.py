@@ -593,6 +593,17 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.warning(f"- {comment}")
             else:
                 st.write(f"- {comment}")
+                
+    # --- スコア計算 ---
+    score = 0
+    if form["tav"] <= 34.5:
+        score += 1
+    if form["ri"] >= 0.68:
+        score += 1
+    if form["pi"] >= 1.3:
+        score += 1
+    if form["edv"] <= 40.4:
+        score += 1
 
      # --- AI診断ブロック ---
     with st.container(border=True):
