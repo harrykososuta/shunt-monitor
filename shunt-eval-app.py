@@ -524,43 +524,62 @@ if st.session_state.authenticated and page == "評価フォーム":
         st.error(f"名前一覧の取得エラー: {e}")
         name_list = []
 
+    if "form_inputs" not in st.session_state:
+        st.session_state.form_inputs = {
+            "name_option": "新規入力",
+            "date_selected": date.today(),
+            "name": "",
+            "tag": "術前評価",
+            "va_type": "AVF",
+            "fv": 400.0,
+            "tav": 60.0,
+            "tamv": 100.0,
+            "ri": 0.6,
+            "pi": 1.0,
+            "psv": 120.0,
+            "edv": 50.0,
+            "note": ""
+        }
+
+    form = st.session_state.form_inputs
+
     with st.container(border=True):
         st.subheader("📝 評価フォーム 入力")
-        name_option = st.radio("患者名の入力方法", ["新規入力", "過去から選択"])
+        form["name_option"] = st.radio("患者名の入力方法", ["新規入力", "過去から選択"], index=0 if form["name_option"] == "新規入力" else 1)
         col_date, col_name = st.columns(2)
         with col_date:
-            date_selected = st.date_input("記録日を選択", value=date.today())
+            form["date_selected"] = st.date_input("記録日を選択", value=form["date_selected"])
         with col_name:
-            if name_option == "新規入力":
-                name = st.text_input("氏名（任意）※本名では記入しないでください")
+            if form["name_option"] == "新規入力":
+                form["name"] = st.text_input("氏名（任意）※本名では記入しないでください", value=form["name"])
             else:
-                name = st.selectbox("過去の患者名から選択", name_list)
+                form["name"] = st.selectbox("過去の患者名から選択", name_list)
 
         col_tag, col_va = st.columns(2)
         with col_tag:
-            tag = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"])
+            form["tag"] = st.selectbox("特記事項", ["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"], index=["術前評価", "術後評価", "定期評価", "VAIVT前評価", "VAIVT後評価"].index(form["tag"]))
         with col_va:
-            va_type = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=0)
+            form["va_type"] = st.selectbox("VAの種類", ["AVF", "AVG", "動脈表在化"], index=["AVF", "AVG", "動脈表在化"].index(form["va_type"]))
 
         col_fv, col_tav = st.columns(2)
         with col_fv:
-            fv = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=400.0)
+            form["fv"] = st.number_input("FV（血流量, ml/min）", min_value=0.0, value=form["fv"])
         with col_tav:
-            tav = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=60.0)
+            form["tav"] = st.number_input("TAV（時間平均流速, cm/s）", min_value=0.0, value=form["tav"])
 
-        tamv = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=100.0)
+        form["tamv"] = st.number_input("TAMV（時間平均最大速度, cm/s）", min_value=0.0, value=form["tamv"])
 
         col_ri, col_pi = st.columns(2)
         with col_ri:
-            ri = st.number_input("RI（抵抗指数）", min_value=0.0, value=0.6)
+            form["ri"] = st.number_input("RI（抵抗指数）", min_value=0.0, value=form["ri"])
         with col_pi:
-            pi = st.number_input("PI（脈波指数）", min_value=0.0, value=1.0)
+            form["pi"] = st.number_input("PI（脈波指数）", min_value=0.0, value=form["pi"])
 
         col_psv, col_edv = st.columns(2)
         with col_psv:
-            psv = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=120.0)
+            form["psv"] = st.number_input("PSV（収縮期最大速度, cm/s）", min_value=0.0, value=form["psv"])
         with col_edv:
-            edv = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=50.0)
+            form["edv"] = st.number_input("EDV（拡張期末速度, cm/s）", min_value=0.0, value=form["edv"])
 
     st.subheader("🔍 自動評価スコア")
     score = 0
@@ -594,7 +613,7 @@ if st.session_state.authenticated and page == "評価フォーム":
             else:
                 st.write(f"- {comment}")
                 
-    # --- AI診断ブロック ---
+   # --- AI診断ブロック ---
     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
@@ -611,7 +630,6 @@ if st.session_state.authenticated and page == "評価フォーム":
                 ai_main_comment = ""
                 ai_supplement = ""
 
-                # 優先度の高い条件から順に判定
                 if form["tav"] < 34.5 and form["pi"] >= 1.3 and form["edv"] < 40.4:
                     ai_main_comment = "TAVおよびEDVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が強く疑われます。VAIVT提案を検討してください"
                 elif form["tav"] < 34.5 and form["pi"] >= 1.3:
