@@ -594,25 +594,23 @@ if st.session_state.authenticated and page == "評価フォーム":
             else:
                 st.write(f"- {comment}")
                 
-    # --- スコア計算 ---
-    score = 0
-    if form["tav"] <= 34.5:
-        score += 1
-    if form["ri"] >= 0.68:
-        score += 1
-    if form["pi"] >= 1.3:
-        score += 1
-    if form["edv"] <= 40.4:
-        score += 1
-
-     # --- AI診断ブロック ---
+    # --- AI診断ブロック ---
     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
+                score = 0
+                if form["tav"] <= 34.5:
+                    score += 1
+                if form["ri"] >= 0.68:
+                    score += 1
+                if form["pi"] >= 1.3:
+                    score += 1
+                if form["edv"] <= 40.4:
+                    score += 1
+
                 ai_main_comment = ""
                 ai_supplement = ""
 
-                # 最優先診断
                 if form["tav"] < 34.5 and form["pi"] >= 1.3 and form["edv"] < 40.4:
                     ai_main_comment = "TAVおよびEDVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が強く疑われます。VAIVT提案を検討してください"
                 elif form["tav"] < 34.5 and form["pi"] >= 1.3:
@@ -632,7 +630,6 @@ if st.session_state.authenticated and page == "評価フォーム":
                 else:
                     ai_main_comment = "特記すべき高度な異常所見は検出されませんでしたが、一部パラメータに変化が見られます"
 
-                # 補足として過大評価の可能性（これは最優先とは独立して表示）
                 if form["tav"] < 25 and 500 <= form["fv"] <= 1000:
                     ai_supplement = "TAVが非常に低く、FVは正常範囲 → 上腕動脈径が大きいため、過大評価の可能性があります"
 
