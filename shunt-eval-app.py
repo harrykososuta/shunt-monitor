@@ -508,7 +508,8 @@ if st.session_state.authenticated and page == "シミュレーションツール
         st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
         st.metric("TAVR", f"{TAVR:.2f}")
 
-""if st.session_state.authenticated and page == "評価フォーム":
+""
+if st.session_state.authenticated and page == "評価フォーム":
     from datetime import datetime, date
 
     try:
