@@ -611,6 +611,7 @@ if st.session_state.authenticated and page == "シミュレーションツール
                 st.warning(f"- {comment}")
             else:
                 st.write(f"- {comment}")
+
                 
    # --- AI診断ブロック ---
     with st.container(border=True):
