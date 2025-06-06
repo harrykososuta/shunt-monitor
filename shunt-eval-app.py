@@ -617,11 +617,12 @@ if st.session_state.authenticated and page == "評価フォーム":
     tamv = form.get("tamv", 1)
     ri = form.get("ri", 0)
     pi = form.get("pi", 0.1)  # avoid division by zero with a minimal positive number
+    fv = form.get("fv", 0)
+    edv = form.get("edv", 0)
 
     TAVR = tav / tamv if tamv else 0
     RI_PI = ri / pi if pi else 0
-                
-   # --- AI診断ブロック ---
+
     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
