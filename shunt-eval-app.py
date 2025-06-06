@@ -622,49 +622,46 @@ if st.session_state.authenticated and page == "評価フォーム":
     RI_PI = ri / pi if pi else 0
                 
    # --- AI診断ブロック ---
-    with st.container(border=True):
+     with st.container(border=True):
         with st.expander("🤖 AIによる診断コメントを表示 / 非表示"):
             if st.button("AI診断を実行"):
-                score = 0
-                if form["tav"] <= 34.5:
-                    score += 1
-                if form["ri"] >= 0.68:
-                    score += 1
-                if form["pi"] >= 1.3:
-                    score += 1
-                if form["edv"] <= 40.4:
-                    score += 1
-
                 ai_main_comment = ""
-                ai_supplement = ""
+                ai_supplement = []
 
-                if form["tav"] < 34.5 and form["pi"] >= 1.3 and form["edv"] < 40.4:
+                # 最優先
+                if tav < 34.5 and edv < 40.4 and ri >= 0.68 and pi >= 1.3:
+                    ai_main_comment = "TAVとEDVの低下。RIとPIの上昇。早急なVAIVT提案が必要です。急な閉塞の危険性があります。"
+                elif tav < 34.5 and pi >= 1.3 and edv < 40.4:
                     ai_main_comment = "TAVおよびEDVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が強く疑われます。VAIVT提案を検討してください"
-                elif form["tav"] < 34.5 and form["pi"] >= 1.3:
+                elif tav < 34.5 and pi >= 1.3:
                     ai_main_comment = "TAVの低下に加え、PIが上昇。吻合部近傍の高度狭窄が疑われます"
-                elif form["tav"] < 34.5 and form["edv"] < 40.4 and form["pi"] < 1.3:
+                elif tav < 34.5 and edv < 40.4 and pi < 1.3:
                     ai_main_comment = "TAVとEDVが低下しており、中等度の吻合部狭窄が疑われます"
-                elif form["tav"] < 34.5 and form["edv"] >= 40.4:
+                elif tav < 34.5 and edv >= 40.4:
                     ai_main_comment = "TAVが低下しており、軽度の吻合部狭窄の可能性があります"
-                elif form["ri"] >= 0.68 and form["edv"] < 40.4:
+                elif ri >= 0.68 and edv < 40.4:
                     ai_main_comment = "RIが高く、EDVが低下。末梢側の狭窄が疑われます"
-                elif form["ri"] >= 0.68:
+                elif ri >= 0.68:
                     ai_main_comment = "RIが上昇しています。末梢抵抗の増加が示唆されますが、他のパラメータ異常がないため再検が必要です"
-                elif form["fv"] < 500:
+                elif fv < 500:
                     ai_main_comment = "血流量がやや低下しています。経過観察が望まれますが、他のパラメータ異常がないため再検が必要です"
                 elif score == 0:
                     ai_main_comment = "正常だと思います。経過観察お願いします"
                 else:
                     ai_main_comment = "特記すべき高度な異常所見は検出されませんでしたが、一部パラメータに変化が見られます"
 
-                if form["tav"] < 25 and 500 <= form["fv"] <= 1000:
-                    ai_supplement = "TAVが非常に低く、FVは正常範囲 → 上腕動脈径が大きいため、過大評価の可能性があります"
+                # 補足コメント条件
+                if tav < 25 and 500 <= fv <= 1000:
+                    ai_supplement.append("TAVが非常に低く、FVは正常範囲 → 上腕動脈径が大きいため、過大評価の可能性があります")
+                if fv > 1500:
+                    ai_supplement.append("FVが高値です。large shuntの可能性があります。身体症状の確認が必要です。")
+                if ri >= 0.68 and pi >= 1.3 and fv >= 400 and tav >= 50:
+                    ai_supplement.append("RI・PIが上昇していますが、FV・TAVは正常値です。吻合部近傍の分岐血管が影響している可能性があります。遮断試験を実施してください。")
 
                 st.subheader("🧠 AI診断コメント")
                 st.info(ai_main_comment)
-                if ai_supplement:
-                    st.info(ai_supplement)
-
+                for sup in ai_supplement:
+                    st.info(sup)
 
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
 
