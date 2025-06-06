@@ -689,8 +689,9 @@ if st.session_state.authenticated and page == "評価フォーム":
         st.markdown("この補足は評価に必要な周辺知識を補完するものです。※検査時の注意点などをここにまとめられます")
 
     if st.button("記録を保存"):
-        if name and name.strip():
-            now = datetime.combine(date_selected, datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
+        name = form.get("name", "").strip()
+        if name:
+            now = datetime.combine(form["date_selected"], datetime.now().time()).strftime("%Y-%m-%d %H:%M:%S")
             comment_joined = "; ".join([c[1] for c in comments])
             access_code = st.session_state.generated_access_code
             st.write("🔑 現在のアクセスコード:", access_code)
@@ -702,18 +703,18 @@ if st.session_state.authenticated and page == "評価フォーム":
                     "anon_id": anon_id,
                     "name": name,
                     "date": now,
-                    "FV": fv,
-                    "RI": ri,
-                    "PI": pi,
-                    "TAV": tav,
-                    "TAMV": tamv,
-                    "PSV": psv,
-                    "EDV": edv,
+                    "FV": form["fv"],
+                    "RI": form["ri"],
+                    "PI": form["pi"],
+                    "TAV": form["tav"],
+                    "TAMV": form["tamv"],
+                    "PSV": form["psv"],
+                    "EDV": form["edv"],
                     "score": score,
                     "comment": comment_joined,
-                    "tag": tag,
+                    "tag": form["tag"],
                     "note": note,
-                    "va_type": va_type,
+                    "va_type": form["va_type"],
                     "access_code": access_code
                 }).execute()
                 st.success("記録が保存されました。")
