@@ -612,6 +612,14 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.warning(f"- {comment}")
             else:
                 st.write(f"- {comment}")
+
+    tav = form.get("tav", 0)
+    tamv = form.get("tamv", 1)
+    ri = form.get("ri", 0)
+    pi = form.get("pi", 0.1)  # avoid division by zero with a minimal positive number
+
+    TAVR = tav / tamv if tamv else 0
+    RI_PI = ri / pi if pi else 0
                 
    # --- AI診断ブロック ---
     with st.container(border=True):
