@@ -508,8 +508,7 @@ if st.session_state.authenticated and page == "シミュレーションツール
         st.metric("TAMV (cm/s)", f"{TAMV:.2f}")
         st.metric("TAVR", f"{TAVR:.2f}")
 
-
-if st.session_state.authenticated and page == "評価フォーム":
+""if st.session_state.authenticated and page == "評価フォーム":
     from datetime import datetime, date
 
     try:
@@ -584,16 +583,16 @@ if st.session_state.authenticated and page == "評価フォーム":
     st.subheader("🔍 自動評価スコア")
     score = 0
     comments = []
-    if tav <= 34.5:
+    if form["tav"] <= 34.5:
         score += 1
         comments.append(("warning", "TAVが34.5 cm/s以下 → 低血流が疑われる"))
-    if ri >= 0.68:
+    if form["ri"] >= 0.68:
         score += 1
         comments.append(("warning", "RIが0.68以上 → 高抵抗が疑われる"))
-    if pi >= 1.3:
+    if form["pi"] >= 1.3:
         score += 1
         comments.append(("warning", "PIが1.3以上 → 脈波指数が高い"))
-    if edv <= 40.4:
+    if form["edv"] <= 40.4:
         score += 1
         comments.append(("warning", "EDVが40.4 cm/s以下 → 拡張期血流速度が低い"))
 
