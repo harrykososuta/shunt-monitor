@@ -821,7 +821,7 @@ if st.session_state.authenticated:
 
             left, right = st.columns([1, 2])
             thresholds = {"TAV": 34.5, "RI": 0.68, "PI": 1.3, "EDV": 40.4}
-            directions = {"TAV": "Above", "RI": "Above", "PI": "Above", "EDV": "Below"}
+            directions = {"TAV": "Below", "RI": "Above", "PI": "Above", "EDV": "Below"}
             eval_params = ["TAV", "RI", "PI", "EDV"]
 
             with left:
