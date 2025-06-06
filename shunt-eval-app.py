@@ -662,7 +662,7 @@ if st.session_state.authenticated and page == "評価フォーム":
                 st.info(ai_main_comment)
                 for sup in ai_supplement:
                     st.info(sup)
-
+                    
     note = st.text_area("備考（自由記述）", placeholder="観察メモや特記事項などがあれば記入")
 
     with st.expander("📌 追加情報を表示"):
